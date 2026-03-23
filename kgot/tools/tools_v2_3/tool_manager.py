@@ -9,7 +9,10 @@
 from kgot.tools.PythonCodeTool import RunPythonCodeTool
 from kgot.tools.tool_manager_interface import ToolManagerInterface
 from kgot.tools.tools_v2_3.ExtractZipTool import ExtractZipTool
-from kgot.tools.tools_v2_3.ImageQuestionTool import ImageQuestionTool
+try:
+    from kgot.tools.tools_v2_3.ImageQuestionTool import ImageQuestionTool
+except Exception:
+    ImageQuestionTool = None
 from kgot.tools.tools_v2_3.LLMTool import LangchainLLMTool
 from kgot.tools.tools_v2_3.SurferTool import SearchTool
 from kgot.tools.tools_v2_3.TextInspectorTool import TextInspectorTool
@@ -52,7 +55,7 @@ class ToolManager(ToolManagerInterface):
         search_tool = SearchTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
         LLM_tool = LangchainLLMTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
         textInspectorTool = TextInspectorTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
-        image_question_tool = ImageQuestionTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics) 
+        image_question_tool = ImageQuestionTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics) if ImageQuestionTool is not None else None
         run_python_tool = RunPythonCodeTool(
             try_to_fix=True,
             times_to_fix=3,
@@ -64,12 +67,13 @@ class ToolManager(ToolManagerInterface):
         
         self.tools.extend([
             LLM_tool,
-            image_question_tool,
             textInspectorTool,
             search_tool,
             run_python_tool,
             extract_zip_tool,
         ])
+        if image_question_tool is not None:
+            self.tools.append(image_question_tool)
             
         # Test for python docker
         self._test_python_container(run_python_tool)

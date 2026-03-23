@@ -33,7 +33,7 @@ from kgot.prompts.tools.tools_v2_3 import (
     QUERY_TO_CHOOSE_WIKIPEDIA_ARTICLES,
 )
 from kgot.utils import UsageStatistics, llm_utils
-from kgot.utils.llm_utils import invoke_with_retry
+from kgot.utils.llm_utils import invoke_structured_with_retry
 from kgot.utils.log_and_statistics import collect_stats
 
 logger = logging.getLogger("Controller.WikipediaTool")
@@ -83,13 +83,11 @@ class WikipediaTool:
             template=QUERY_TO_CHOOSE_WIKIPEDIA_ARTICLES,
         )
 
-        chain = self.llm.with_structured_output(QueryAnswer, method="json_schema")
-        
         complete_template = prompt_template.invoke({"articles_and_summary": search_results,
                                                     "search_query": query})
 
         search_results = [{"title": title, "summary": summary} for title, summary in search_results.items()]
-        response = invoke_with_retry(chain, complete_template)
+        response = invoke_structured_with_retry(self.llm, QueryAnswer, complete_template)
 
         logger.info(f"Articles to search response: {pformat(response, width=160)}")
 
@@ -363,14 +361,12 @@ class WikipediaTool:
             template=QUERY_FOR_WIKIPEDIA_INFO_EXTRACTION,
         )
 
-        chain = self.llm.with_structured_output(QueryAnswer, method="json_schema")
-        
         complete_template = prompt_template.invoke({"full_page_text": page,
                                                     "tables": table_data,
                                                     "query_specific": query,
                                                     "query_general": original_query})
         
-        response = invoke_with_retry(chain, complete_template)
+        response = invoke_structured_with_retry(self.llm, QueryAnswer, complete_template)
 
         logger.info(f"Page content response: {pformat(response, width=160)}")
         

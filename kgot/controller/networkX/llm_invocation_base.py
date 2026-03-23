@@ -21,7 +21,7 @@ from kgot.prompts.networkX.base_prompts import (
     UPDATE_GRAPH_GIVEN_NEW_INFORMATION_PROMPT_TEMPLATE,
     get_formatter,
 )
-from kgot.utils.llm_utils import invoke_with_retry
+from kgot.utils.llm_utils import invoke_structured_with_retry, invoke_with_retry
 
 logger = logging.getLogger("Controller.LLMUtils")
 
@@ -39,8 +39,7 @@ def merge_reasons_to_insert_base(llm_planning, list_reason_to_insert: List[str],
 
     completed_prompt = prompt_template.invoke({"list_of_reasons": list_of_reasons})
 
-    chain = llm_planning.with_structured_output(ReasonToInsert, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, ReasonToInsert, completed_prompt)
 
     return response.reason_to_insert
 
@@ -64,8 +63,7 @@ def define_write_query_given_new_information_base(llm_planning, initial_query: s
                                               "new_information": new_information,
                                               "missing_information": missing_information})
 
-    chain = llm_planning.with_structured_output(NewInformationWriteQueries, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, NewInformationWriteQueries, completed_prompt)
     logger.info(f"response before parsing: {pformat(response, width=160)}")
     
     queries = response.queries
@@ -109,8 +107,7 @@ def define_need_for_math_before_parsing_base(llm_planning, initial_query: str, p
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "partial_solution": partial_solution})
 
-    chain = llm_planning.with_structured_output(NeedForMath, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, NeedForMath, completed_prompt)
     logger.info(f"Do we need more math:\n{pformat(response, width=160)}")
 
     return response.need_for_math
@@ -131,8 +128,7 @@ def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solut
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "partial_solution": partial_solution})
 
-    chain = llm_planning.with_structured_output(Solution, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, Solution, completed_prompt)
     logger.info(f"Final solution:\n{pformat(response, width=160)}")
 
     return response.final_solution
@@ -158,8 +154,7 @@ def define_final_solution_base(llm_planning, initial_query: str, partial_solutio
                                                "partial_solution": partial_solution,
                                                "list_final_solutions": list_final_solutions})
 
-    chain = llm_planning.with_structured_output(Solution, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, Solution, completed_prompt)
     logger.info(f"Final returned solution:\n{pformat(response, width=160)}")
 
     return response.final_solution

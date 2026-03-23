@@ -30,7 +30,7 @@ from kgot.prompts.networkX.directRetrieve.prompts import (
     DEFINE_TOOL_CALLS_PROMPT_TEMPLATE,
     FIX_CODE_PROMPT_TEMPLATE,
 )
-from kgot.utils.llm_utils import invoke_with_retry
+from kgot.utils.llm_utils import invoke_structured_with_retry, invoke_with_retry
 from kgot.utils.log_and_statistics import collect_stats
 
 logger = logging.getLogger("Controller.LLMUtils")
@@ -56,9 +56,7 @@ def define_next_step(llm_planning, initial_query: str,
                                                "existing_entities_and_relationships": existing_entities_and_relationships,
                                                "tool_calls_made": tool_calls_made})
 
-    chain = llm_planning.with_structured_output(NextStepQuery, method="json_schema")
-
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, NextStepQuery, completed_prompt)
     logger.info(f"New query:\n{pformat(response, width=160)}")
 
     query = response.query
@@ -89,8 +87,7 @@ def define_forced_retrieve_queries(llm_planning, initial_query: str,
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "existing_entities_and_relationships": existing_entities_and_relationships})
 
-    chain = llm_planning.with_structured_output(RetrieveQuery, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, RetrieveQuery, completed_prompt)
     logger.info(f"New forced query:\n{pformat(response, width=160)}")
 
     return response.query
@@ -169,8 +166,7 @@ def generate_forced_solution(llm_planning, initial_query: str,
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "existing_entities_and_relationships": existing_entities_and_relationships})
 
-    chain = llm_planning.with_structured_output(ForcedSolution, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, ForcedSolution, completed_prompt)
     logger.info(f"New forced query:\n{pformat(response, width=160)}")
 
     return response.solution
@@ -206,8 +202,6 @@ def fix_code(llm_planning, code_to_fix: str, error_log: str, existing_entities_a
                                                "error_log": error_log,
                                                "existing_entities_and_relationships": existing_entities_and_relationships})
 
-    chain = llm_planning.with_structured_output(CorrectJSON, method="json_schema")
-
-    response = invoke_with_retry(chain, compete_prompt)
+    response = invoke_structured_with_retry(llm_planning, CorrectJSON, compete_prompt)
 
     return response.query

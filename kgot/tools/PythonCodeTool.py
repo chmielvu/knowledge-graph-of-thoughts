@@ -100,8 +100,7 @@ Limitations:
                                                    "error": error})
         logger.info(f"Prompt template of _fix_code: {completed_prompt.text}")
 
-        chain = self.llm.with_structured_output(FixedCode, method="json_schema")
-        response = chain.invoke(completed_prompt)
+        response = llm_utils.invoke_structured_with_retry(self.llm, FixedCode, completed_prompt)
             
         logger.info(f"New code and list of requirements:\n{pformat(response, width=160)}")
 
