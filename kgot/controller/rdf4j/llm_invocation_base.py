@@ -26,7 +26,7 @@ from kgot.prompts.rdf4j.base_prompts import (
     PARSE_FINAL_SOLUTION_WITH_LLM_PROMPT_TEMPLATE,
     PARSE_SOLUTION_WITH_LLM_PROMPT_TEMPLATE,
 )
-from kgot.utils.llm_utils import invoke_with_retry
+from kgot.utils.llm_utils import invoke_structured_with_retry, invoke_with_retry
 
 logger = logging.getLogger("Controller.LLMUtils")
 
@@ -44,9 +44,7 @@ def merge_reasons_to_insert_base(llm_planning, list_reason_to_insert: List[str],
 
     completed_prompt = prompt_template.invoke({"list_of_reasons": list_of_reasons})
 
-    chain = llm_planning.with_structured_output(ReasonToInsert, method="json_schema")
-
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, ReasonToInsert, completed_prompt)
     logger.info(f"New Reason to Insert:\n{pformat(response, width=160)}")
     
     return response.reason_to_insert
@@ -70,8 +68,7 @@ def define_retrieve_query_base(llm_planning, initial_query: str,
                                                "existing_entities_and_relationships": existing_entities_and_relationships,
                                                "wrong_query": wrong_query})
     
-    chain = llm_planning.with_structured_output(RetrieveQuery, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, RetrieveQuery, completed_prompt)
     logger.info(f"New retrieve query:\n{pformat(response, width=160)}")
 
     # Return the wanted values
@@ -98,8 +95,7 @@ def define_sparql_query_given_new_information_base(llm_planning, initial_query: 
                                               "new_information": new_information,
                                               "missing_information": missing_information})
 
-    chain = llm_planning.with_structured_output(NewInformationSPARQLQueries, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, NewInformationSPARQLQueries, completed_prompt)
     logger.info(f"response before parsing: {pformat(response, width=160)}")
     
     queries = response.queries
@@ -174,8 +170,7 @@ def define_need_for_math_before_parsing_base(llm_planning, initial_query: str, p
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "partial_solution": partial_solution})
 
-    chain = llm_planning.with_structured_output(NeedForMath, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, NeedForMath, completed_prompt)
     logger.info(f"Do we need more math:\n{pformat(response, width=160)}")
 
     return response.need_for_math
@@ -196,8 +191,7 @@ def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solut
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "partial_solution": partial_solution})
 
-    chain = llm_planning.with_structured_output(Solution, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, Solution, completed_prompt)
     logger.info(f"Final solution:\n{pformat(response, width=160)}")
 
     return response.final_solution
@@ -223,8 +217,7 @@ def define_final_solution_base(llm_planning, initial_query: str, partial_solutio
                                                "partial_solution": partial_solution,
                                                "list_final_solutions": list_final_solutions})
 
-    chain = llm_planning.with_structured_output(Solution, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, Solution, completed_prompt)
     logger.info(f"Final returned solution:\n{pformat(response, width=160)}")
 
     return response.final_solution
@@ -244,8 +237,7 @@ def fix_sparql_base(llm_planning, sparql_query_to_fix: str, error_log: str, *arg
                                                "error_log": error_log})
 
     # Create the chain to invoke (see RunnableSequence)
-    chain = llm_planning.with_structured_output(CorrectJSON, method="json_schema")
-    response = invoke_with_retry(chain, completed_prompt)
+    response = invoke_structured_with_retry(llm_planning, CorrectJSON, completed_prompt)
     logger.info(f"Newly fixed SPARQL:\n{pformat(response, width=160)}")
     
     sparql = response.sparql
