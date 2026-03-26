@@ -1,68 +1,91 @@
-# Byte-compiled / optimized / DLL files
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-# C extensions
-*.so
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
-# Distribution / packaging
-dist/
+# Build / packaging
 build/
-kgot.egg-info/
-kgot_simpleqa.egg-info/
-kgot_gaia.egg-info/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Installer logs
-pip-log.txt
-
-# IDEs
+# IDE / editor files
 .idea/
-*.vscode/
-*.pycproj
+.vscode/
+*.code-workspace
+*.suo
 *.user
+*.userossc
+*.pycproj
 *.pyproj.user
 
-# Data
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets and local runtime config
+.env
+.env.*
+!.env.example
+!.env.template
+kgot/.env
+kgot/config_llms.json
+kgot/config_tools.json
+containers/**/.env
+
+# Logs and transient runtime output
+*.log
 *.out
 *.err
-
-# Environments
-env/
-venv/
-.env
-
-# Config File
-**/config.json
-
-config_llms.json
-*config_tools.json
-
-
-# settings
-*.ctrl
-
-# Results
-logs/*
-!logs/current_runs/
-snapshots/
-!logs/current_runs/**/snapshots
-apicache/
-kgot/knowledge_graph/_snapshots/*
-
-results/current_runs/*
-!results/current_runs/archive.tar.*
-!results/current_runs/README.md
-
-# MacOsX
-.DS_Store
-
-# logs
+*.pid
 output.log
 llm_cost.json
-!logs/current_runs/**/output.log
-!logs/current_runs/**/llm_cost.json
+chat_llm_cost.json
+executor_out.log
+executor_err.log
+gradio_output.txt
+gradio_error.txt
 
-# Downloaded files
-kgot/tools/downloads/*
+# Generated artifacts
+results/
+logs/
+snapshots/
+snapshots_visualization_tool/
+apicache/
+kgot/knowledge_graph/_snapshots/
+kgot/tools/downloads/
+kgot-streamlit-*/
+
+# Local planning / scratch
+.octocode/
+kgot/.octocode/
+
+# Streamlit / notebook scratch
+.streamlit/
+*.ipynb_checkpoints
+
+# Local databases / temp files
+*.sqlite
+*.db
+*.db-journal
+tmp/
+temp/
+
+# Windows oddities
+nul
+kgot/nul
 

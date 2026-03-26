@@ -126,5 +126,21 @@
     "num_ctx": 32768,
     "num_predict": 16384,
     "num_batch": 4096
+  },
+  "tongyi-deepresearch": {
+    "model": "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B",
+    "temperature": 0.1,
+    "organization": "",
+    "api_key": "${NANOGPT_API_KEY}",
+    "base_url": "https://nano-gpt.com/api/subscription/v1",
+    "model_family": "OpenAI"
+  },
+  "mistral-medium": {
+    "model": "mistral-medium-2505",
+    "temperature": 0,
+    "organization": "",
+    "api_key": "${MISTRAL_API_KEY}",
+    "base_url": "https://api.mistral.ai/v1",
+    "model_family": "OpenAI"
   }
 }

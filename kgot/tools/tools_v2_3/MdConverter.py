@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 
 import mammoth
 import markdownify
+import nbformat
 import pandas as pd
 import pdfminer
 import pdfminer.high_level
@@ -128,6 +129,112 @@ class PlainTextConverter(DocumentConverter):
             title=None,
             text_content=text_content,
         )
+
+
+class NotebookConverter(DocumentConverter):
+    """Parse Jupyter notebooks into readable markdown-like text instead of raw JSON."""
+
+    MAX_OUTPUT_CHARS_PER_CELL = 4000
+    MAX_NOTEBOOK_OUTPUT_CHARS = 24000
+
+    def convert(self, local_path, **kwargs) -> Union[None, DocumentConverterResult]:
+        extension = kwargs.get("file_extension", "")
+        if extension.lower() != ".ipynb":
+            return None
+
+        with open(local_path, "r", encoding=kwargs.get("encoding", "utf-8")) as fh:
+            notebook = nbformat.read(fh, as_version=4)
+
+        title = notebook.metadata.get("title") or os.path.basename(local_path)
+        sections: list[str] = [f"# Notebook: {title}"]
+        total_output_chars = 0
+
+        for index, cell in enumerate(notebook.cells, start=1):
+            cell_type = cell.get("cell_type", "unknown")
+            if cell_type == "markdown":
+                source = (cell.get("source") or "").strip()
+                if source:
+                    sections.append(f"\n<!-- Markdown cell {index} -->\n{source}")
+            elif cell_type == "code":
+                source = cell.get("source") or ""
+                sections.append(f"\n<!-- Code cell {index} -->\n```python\n{source.rstrip()}\n```")
+                outputs_text = self._render_outputs(cell.get("outputs", []), total_output_chars)
+                total_output_chars += len(outputs_text)
+                if outputs_text:
+                    sections.append(f"\n<!-- Output cell {index} -->\n{outputs_text}")
+            elif cell_type == "raw":
+                source = (cell.get("source") or "").strip()
+                if source:
+                    sections.append(f"\n<!-- Raw cell {index} -->\n{source}")
+
+        return DocumentConverterResult(
+            title=title,
+            text_content="\n\n".join(section for section in sections if section.strip()),
+        )
+
+    def _render_outputs(self, outputs, current_total_chars: int) -> str:
+        rendered_outputs: list[str] = []
+        remaining_budget = max(self.MAX_NOTEBOOK_OUTPUT_CHARS - current_total_chars, 0)
+        if remaining_budget == 0:
+            return "_Notebook outputs omitted: output budget exhausted._"
+
+        for output in outputs:
+            if remaining_budget <= 0:
+                rendered_outputs.append("_Additional outputs omitted due to notebook output size._")
+                break
+
+            output_type = output.get("output_type", "")
+            rendered = self._render_single_output(output_type, output)
+            if not rendered:
+                continue
+
+            if len(rendered) > self.MAX_OUTPUT_CHARS_PER_CELL:
+                rendered = rendered[: self.MAX_OUTPUT_CHARS_PER_CELL] + "\n...[truncated]"
+
+            if len(rendered) > remaining_budget:
+                rendered = rendered[:remaining_budget] + "\n...[truncated]"
+
+            rendered_outputs.append(rendered)
+            remaining_budget -= len(rendered)
+
+        return "\n\n".join(rendered_outputs)
+
+    def _render_single_output(self, output_type: str, output: dict) -> str:
+        if output_type == "stream":
+            text = output.get("text", "")
+            return self._normalize_output_text(text)
+
+        if output_type in {"display_data", "execute_result"}:
+            data = output.get("data", {})
+            if "text/plain" in data:
+                return self._normalize_output_text(data["text/plain"])
+            if "text/markdown" in data:
+                return self._normalize_output_text(data["text/markdown"])
+            if "text/html" in data:
+                html_text = data["text/html"]
+                if isinstance(html_text, list):
+                    html_text = "".join(html_text)
+                stripped = re.sub(r"<[^>]+>", " ", str(html_text))
+                return self._normalize_output_text(stripped)
+            if any(key.startswith("image/") for key in data):
+                return "_Image output omitted._"
+            if "application/json" in data:
+                return self._normalize_output_text(json.dumps(data["application/json"], indent=2))
+            return "_Rich output omitted._"
+
+        if output_type == "error":
+            traceback_lines = output.get("traceback", [])
+            traceback_text = "\n".join(traceback_lines) if traceback_lines else ""
+            header = f"Error: {output.get('ename', 'UnknownError')}: {output.get('evalue', '')}".strip()
+            return self._normalize_output_text(f"{header}\n{traceback_text}".strip())
+
+        return ""
+
+    def _normalize_output_text(self, value: Union[str, list[str]]) -> str:
+        if isinstance(value, list):
+            value = "".join(value)
+        value = str(value).replace("\r\n", "\n").strip()
+        return value
 
 
 class HtmlConverter(DocumentConverter):
@@ -508,6 +615,7 @@ class MarkdownConverter:
         # Later registrations are tried first / take higher priority than earlier registrations
         # To this end, the most specific converters should appear below the most generic converters
         self.register_page_converter(XmlConverter())
+        self.register_page_converter(NotebookConverter())
         self.register_page_converter(YouTubeConverter())
         self.register_page_converter(DocxConverter())
         self.register_page_converter(XlsxConverter())

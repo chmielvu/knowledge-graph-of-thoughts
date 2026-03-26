@@ -71,6 +71,8 @@ class ToolManagerInterface(ABC):
             if 'env' in tool_config:
                 env_vars = tool_config['env']
                 for key, value in env_vars.items():
+                    if value in (None, ""):
+                        continue
                     os.environ[key] = value
 
     def get_tools(self) -> list[BaseTool]:

@@ -88,7 +88,7 @@ def invoke_with_retry(chain, *args, **kwargs):
 
 def _should_use_json_object_structured_output(llm) -> bool:
     base_url = getattr(llm, "openai_api_base", None)
-    return isinstance(llm, ChatOpenAI) and isinstance(base_url, str) and "nano-gpt.com" in base_url
+    return isinstance(llm, ChatOpenAI) and isinstance(base_url, str) and ("nano-gpt.com" in base_url or "nanogpt" in base_url)
 
 
 def _prompt_to_text(prompt) -> str:

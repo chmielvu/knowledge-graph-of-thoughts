@@ -4,5 +4,12 @@
     "env": {
       "SERPAPI_API_KEY": ""
     }
+  },
+  {
+    "name": "POLLINATIONS",
+    "env": {
+      "POLLINATIONS_API_KEY": "",
+      "POLLINATIONS_API_BASE_URL": "https://gen.pollinations.ai"
+    }
   }
 ]

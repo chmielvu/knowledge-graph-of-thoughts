@@ -49,6 +49,10 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
     llm: Runnable = None
     md_converter: MarkdownConverter = None
     default_data_folder: str = None
+    max_direct_return_chars: int = 40000
+    max_question_context_chars: int = 60000
+    head_context_chars: int = 45000
+    tail_context_chars: int = 10000
 
     def __init__(self, model_name: str, temperature: float, usage_statistics: UsageStatistics, **kwargs: Any):
         super().__init__(**kwargs)
@@ -58,6 +62,53 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         self.md_converter = MarkdownConverter(self.usage_statistics)
         self.default_data_folder = "benchmarks/datasets/GAIA/attachments/validation/"
 
+    def _truncate_for_direct_return(self, file_path: str, text_content: str) -> str:
+        if len(text_content) <= self.max_direct_return_chars:
+            return text_content
+
+        head = text_content[: self.head_context_chars]
+        tail = text_content[-self.tail_context_chars :] if len(text_content) > self.tail_context_chars else ""
+        omitted_chars = len(text_content) - len(head) - len(tail)
+        summary = [
+            f"[Content truncated for safety.]",
+            f"File: {os.path.basename(file_path)}",
+            f"Original size: {len(text_content)} characters",
+            f"Omitted middle section: {max(omitted_chars, 0)} characters",
+            "",
+            "=== BEGIN FILE (truncated) ===",
+            head,
+        ]
+        if tail:
+            summary.extend(
+                [
+                    "",
+                    "=== END FILE (truncated) ===",
+                    tail,
+                ]
+            )
+        return "\n".join(summary)
+
+    def _truncate_for_question_context(self, file_path: str, text_content: str) -> str:
+        if len(text_content) <= self.max_question_context_chars:
+            return text_content
+
+        head = text_content[: self.head_context_chars]
+        tail = text_content[-self.tail_context_chars :] if len(text_content) > self.tail_context_chars else ""
+        omitted_chars = len(text_content) - len(head) - len(tail)
+        return "\n".join(
+            [
+                f"[The file content was truncated before question answering.]",
+                f"File: {os.path.basename(file_path)}",
+                f"Original size: {len(text_content)} characters",
+                f"Omitted middle section: {max(omitted_chars, 0)} characters",
+                "",
+                "=== BEGIN FILE EXCERPT ===",
+                head,
+                "",
+                "=== END FILE EXCERPT ===",
+                tail,
+            ]
+        )
 
     @collect_stats("inspect_file_as_text")
     def _run(self, file_path, question: Optional[str] = None) -> str:
@@ -79,9 +130,12 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             return "Cannot use inspect_file_as_text tool with images: use the image_inspector tool instead!"
 
         result = self.md_converter.convert(file_path)
+        text_content = result.text_content or ""
         
         if not question:
-            return result.text_content
+            return self._truncate_for_direct_return(file_path, text_content)
+
+        question_context = self._truncate_for_question_context(file_path, text_content)
         
         messages = [
             {
@@ -91,10 +145,10 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             },
             {
                 "role": "user",
-                "content": "Here is the complete file:\n### "
+                "content": "Here is the file content or a safety-truncated excerpt of it:\n### "
                 + str(result.title)
                 + "\n\n"
-                + result.text_content[:70000],
+                + question_context,
             },
             {
                 "role": "user",

@@ -24,6 +24,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
 import requests
+from ddgs import DDGS
 from serpapi import GoogleSearch
 from kgot.tools.tools_v2_3.Cookies import COOKIES
 from kgot.tools.tools_v2_3.MdConverter import (
@@ -220,7 +221,8 @@ class SimpleTextBrowser:
 
     def _serpapi_search(self, query: str, filter_year: Optional[int] = None, retry: Optional[bool] = False) -> None:
         if self.serpapi_key is None:
-            raise ValueError("Missing SerpAPI key.")
+            self._ddgs_search(query, filter_year=filter_year)
+            return
         
         params = {
             "engine": "google",
@@ -284,6 +286,45 @@ class SimpleTextBrowser:
 
         if retry:
             content = f"No result were found for filtering year: {filter_year}.\nREMOVED YEAR FILTER.\n\nThe following results can be of any year.\n\n{content}\n"
+
+        self._set_page_content(content)
+
+    def _ddgs_search(self, query: str, filter_year: Optional[int] = None) -> None:
+        search_query = query if filter_year is None else f"{query} {filter_year}"
+        self.page_title = f"{query} - Search"
+
+        with DDGS() as ddgs:
+            results = list(ddgs.text(search_query, max_results=10))
+
+        if not results:
+            year_filter_message = f" with approximate year hint {filter_year}" if filter_year is not None else ""
+            self._set_page_content(f"No results found for '{query}'{year_filter_message}. Try a more general query.")
+            return
+
+        def _prev_visit(url):
+            for i in range(len(self.history) - 1, -1, -1):
+                if self.history[i][0] == url:
+                    return f"You previously visited this page {round(time.time() - self.history[i][1])} seconds ago.\n"
+            return ""
+
+        web_snippets: List[str] = []
+        for idx, page in enumerate(results, start=1):
+            title = page.get("title") or page.get("heading") or "Untitled"
+            link = page.get("href") or page.get("url") or ""
+            snippet = page.get("body") or page.get("snippet") or ""
+            if not link:
+                continue
+            redacted_version = f"{idx}. [{title}]({link})\n{_prev_visit(link)}{snippet}"
+            web_snippets.append(redacted_version.strip())
+
+        content = (
+            f"A web search for '{query}' found {len(web_snippets)} results"
+            + (" using DuckDuckGo fallback." if self.serpapi_key is None else ".")
+            + "\n\n## Web Results\n"
+            + "\n\n".join(web_snippets)
+        )
+        if filter_year is not None:
+            content = f"Approximate year hint used: {filter_year}\n\n{content}\n"
 
         self._set_page_content(content)
 

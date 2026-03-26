@@ -9,11 +9,13 @@
 from kgot.tools.PythonCodeTool import RunPythonCodeTool
 from kgot.tools.tool_manager_interface import ToolManagerInterface
 from kgot.tools.tools_v2_3.ExtractZipTool import ExtractZipTool
+from kgot.tools.tools_v2_3.GraphVizTool import GraphVizTool
 try:
     from kgot.tools.tools_v2_3.ImageQuestionTool import ImageQuestionTool
 except Exception:
     ImageQuestionTool = None
 from kgot.tools.tools_v2_3.LLMTool import LangchainLLMTool
+from kgot.tools.tools_v2_3.PollinationsSearchTool import PollinationsSearchTool
 from kgot.tools.tools_v2_3.SurferTool import SearchTool
 from kgot.tools.tools_v2_3.TextInspectorTool import TextInspectorTool
 from kgot.tools.tools_v2_3.Web_surfer import init_browser
@@ -35,8 +37,9 @@ class ToolManager(ToolManagerInterface):
         self,
         usage_statistics: UsageStatistics,
         base_config_path: str = "kgot/config_tools.json",
-        additional_config_path: str = "kgot/tools/tools_v2_3/additional_config_tools.json",
+        additional_config_path: str = "kgot/tools/tools_v2_3/additional_config_tools.template.json",
         python_executor_uri: str = "http://localhost:16000",
+        model_name: str = "gpt-4o-mini",
     ) -> None:
         """
         Initialize the ToolManager.
@@ -52,14 +55,16 @@ class ToolManager(ToolManagerInterface):
         init_browser()
         ### TOOLS ###
         extract_zip_tool = ExtractZipTool()
-        search_tool = SearchTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
-        LLM_tool = LangchainLLMTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
-        textInspectorTool = TextInspectorTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics)
-        image_question_tool = ImageQuestionTool(model_name="gpt-4o-mini", temperature=0.5, usage_statistics=usage_statistics) if ImageQuestionTool is not None else None
+        search_tool = SearchTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics)
+        pollinations_search_tool = PollinationsSearchTool(usage_statistics=usage_statistics)
+        graph_viz_tool = GraphVizTool()
+        LLM_tool = LangchainLLMTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics)
+        textInspectorTool = TextInspectorTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics)
+        image_question_tool = ImageQuestionTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics) if ImageQuestionTool is not None else None
         run_python_tool = RunPythonCodeTool(
             try_to_fix=True,
             times_to_fix=3,
-            model_name="gpt-4o-mini",
+            model_name=model_name,
             temperature=0.5,
             python_executor_uri=python_executor_uri,
             usage_statistics=usage_statistics,
@@ -69,8 +74,10 @@ class ToolManager(ToolManagerInterface):
             LLM_tool,
             textInspectorTool,
             search_tool,
+            pollinations_search_tool,
             run_python_tool,
             extract_zip_tool,
+            graph_viz_tool,
         ])
         if image_question_tool is not None:
             self.tools.append(image_question_tool)
@@ -99,5 +106,5 @@ print("Python Docker service is running.")
 
 
 if __name__ == "__main__":
-    tool_manager = ToolManager(None, additional_config_path="kgot/tools/tools_v2_3/additional_config_tools.json")
+    tool_manager = ToolManager(None, additional_config_path="kgot/tools/tools_v2_3/additional_config_tools.template.json")
     print(tool_manager.get_tools())

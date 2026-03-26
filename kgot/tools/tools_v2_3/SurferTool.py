@@ -26,6 +26,7 @@ from transformers.agents.prompts import DEFAULT_REACT_JSON_SYSTEM_PROMPT
 
 from kgot.tools.tools_v2_3.Web_surfer import (
     ArchiveSearchTool,
+    DownloadTool,
     FinderTool,
     FindNextTool,
     FullPageSummaryTool,
@@ -101,6 +102,7 @@ And don't hesitate to provide them with a complex search task, like finding a di
                 FinderTool(),
                 FindNextTool(),
                 ArchiveSearchTool(),
+                DownloadTool(),
                 full_page_tool,
                 wikipedia_tool,
             ],

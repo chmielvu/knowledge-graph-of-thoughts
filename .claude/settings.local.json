@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__list_dir",
+      "WebFetch(domain:docs.crawl4ai.com)",
+      "WebFetch(domain:docs.langchain.com)",
+      "mcp__octocode__githubViewRepoStructure",
+      "mcp__CodeGraphContext__list_indexed_repositories",
+      "mcp__CodeGraphContext__watch_directory",
+      "mcp__CodeGraphContext__add_code_to_graph",
+      "mcp__CodeGraphContext__check_job_status",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__activate_project",
+      "mcp__serena__find_symbol",
+      "mcp__pollinations__webSearch",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "mcp__ddg-search__search"
+    ]
+  }
+}
