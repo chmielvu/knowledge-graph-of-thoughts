@@ -84,7 +84,7 @@ class Controller(ControllerInterface):
 
         # Set up the tools
         tool_manager = importlib.import_module(f"kgot.tools.{tool_choice}").ToolManager
-        self.tool_manager = tool_manager(self.usage_statistics, python_executor_uri=python_executor_uri)
+        self.tool_manager = tool_manager(self.usage_statistics, python_executor_uri=python_executor_uri, model_name=llm_execution_model)
         self.tools = self.tool_manager.get_tools()
         # Create a map between the tools and their names
         self.tool_names = {}
