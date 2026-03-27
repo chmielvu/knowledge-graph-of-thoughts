@@ -25,7 +25,6 @@ from langchain_community.document_loaders import (
     UnstructuredXMLLoader,
 )
 from langchain_core.documents import Document
-from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
 from kgot.utils import UsageStatistics
@@ -115,22 +114,14 @@ class ZeroShot:
                 api_key=model_config["api_key"],
                 max_tokens=model_config["max_tokens"] if "max_tokens" in model_config else None,
                 organization=model_config["organization"],
-                **{key: model_config[key] if llm_execution_temperature is None else llm_execution_temperature for key in 
+                **{key: model_config[key] if llm_execution_temperature is None else llm_execution_temperature for key in
                 ["temperature"] if key in model_config},
-                **{key: model_config[key] for key in 
+                **{key: model_config[key] for key in
                 ["reasoning_effort"] if key in model_config},
             )
-        elif model_config["model_family"] == "Ollama":
-            llm = ChatOllama(
-                model=model_config["model"],
-                temperature=model_config["temperature"] if llm_execution_temperature is None else llm_execution_temperature,
-                base_url="localhost:11434",
-                num_ctx=model_config["num_ctx"],
-                num_predict=model_config["num_predict"],
-                num_batch=model_config["num_batch"],
-                keep_alive=-1
-            )
-        
+        else:
+            raise ValueError(f"Model family '{model_config['model_family']}' not supported. Only 'OpenAI' is supported.")
+
         self.llm_execution = llm
 
         # Checks if the given logs_file have an existing file_path, if not create the directories

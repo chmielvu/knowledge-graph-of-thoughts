@@ -29,7 +29,6 @@ tool_manager = ToolManager(
 ```
 
 Note that the `base_config_path` parameter defaults to ["kgot/config_tools.json"](../config_tools.json), which is subsequently parsed for API keys set by the user.
-Currently only the `SimpleTextBrowser` utility of the **Surfer Agent** requires the [SerpApi](https://serpapi.com/) API key.
 
 In our reference implementation, the tool manager is initialized within the **KGoT Controller** as an integrated part of the **LLM Tool Executor** component.
 

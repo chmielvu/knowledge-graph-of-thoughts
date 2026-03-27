@@ -10,7 +10,7 @@ The KGoT system is designed to be modular and extensible towards different types
 By design, users can flexibly add support for additional graph stores, as long as they adhere to the `KnowledgeGraphInterface` abstract class in [`kg_interface.py`](kg_interface.py).
 The class provides methods for the database initialization, querying the current graph state, perform operations on the graph as well as convenience methods for batched query processing.
 
-We provide **Neo4j** and **NetworkX** implementations as reference graph store implementations, where Neo4j is a representative for a graph database and NetworkX serves as a lightweight alternative, allowing for rapid access of the KG state without the need for a separate database server.
+We provide **Neo4j**, **FalkorDB**, and **NetworkX** implementations as reference graph store implementations. Neo4j and FalkorDB are representatives for graph databases (both using Cypher queries), while NetworkX serves as a lightweight in-memory alternative, allowing for rapid access of the KG state without the need for a separate database server.
 
 ### Neo4j
 
@@ -72,6 +72,20 @@ MATCH (w:Writer)-[:QUOTED_FOR]->(wod:WordOfTheDay {date: '2022-06-27'}) RETURN w
 ```
 
 We observe that Neo4j/Cypher is particularly advantageous for tasks that require retrieving specific subgraphs, relationships, or patterns within the KG.
+
+### FalkorDB
+
+The FalkorDB implementation provides a Redis-based graph database that supports OpenCypher queries, making it API-compatible with Neo4j's query language.
+FalkorDB offers native multi-tenancy where each graph is isolated by name, making it suitable for scenarios requiring graph isolation.
+It includes enhanced features such as Mistral AI embeddings for semantic search and LangChain integration for hybrid search (vector + fulltext).
+
+Similar to Neo4j, the FalkorDB implementation interacts with the Graph Store using `write_query` in the ENHANCE pathway and `get_query` in the SOLVE pathway.
+The implementation uses LLM-generated Cypher queries tailored for task resolution.
+
+Configuration is done via environment variables:
+- `FALKORDB_HOST`: Host address (default: localhost)
+- `FALKORDB_PORT`: Port number (default: 6379)
+- `FALKORDB_GRAPH_NAME`: Graph name for multi-tenancy (default: kgot_graph)
 
 ### NetworkX
 
@@ -140,79 +154,3 @@ After the code execution, the correct solution `47` is obtained.
 We observe that NetworkX/Python excels in tasks that require traversals of longer paths, in which many intermediate computational steps are performed.
 For the same question using Neo4j, even though the task query is successfully transformed into a KG representation, the LLM Graph Executor consistently requires more iterations until it selects the SOLVE pathway.
 
-### RDF4J
-The RDF4J implementation provides additionally utility functions with error handling for connecting and interacting with the RDF4J graph store.
-We provide a containerized environment for interaction with the graph store.
-The RDF4J implementation uses standard SPARQL 1.1 queries.
-As with the Neo4j implementation, the RDF4J implementation interacts with the graph store using `get_query` in the SOLVE pathway and `write_query` in the ENHANCE pathway.
-
-The RDF4J implementation requires two endpoints to be provided, a `write` endpoint for `write_query` and a `read` endpoint for `get_query`.
-
-Additionally, users can obtain a comprehensive state of the current KG by calling the `get_current_graph_state` function, which queries the graph store server to export all nodes and relations within the current KG state with the following SPARQL query:
-
-```sparql
-CONSTRUCT {
-    ?s ?p ?o .
-}
-WHERE {
-    ?s ?p ?o .
-}
-```
-
-The above query is statically defined, and guarantees the retrieval of the full KG state into a format, that allows for further data analysis by ensuring consistency of the acquired snapshot.
-
-#### Example: Resolving Question 51 with RDF4J 
-
-<p align="center">
-  <img src="../../paper/pics/q51_task_representation.svg" width="80%">
-  <br>
-  <em><strong>Example of a tree structure.</strong> This level 2 GAIA task requires 6 intermediate steps and the usage of 2 tools. The expected solution is 'Alfonso Visconti'.</em>
-</p>
-
-The KGoT framework initially invokes the Surfer Agent to search for information on the portrait and additional information on the consecrators and co-consecrators. Once the information is successfully retrieved it is used for enhancing the constructed KG.
-
-```
-# at iteration 1
-@prefix : <http://example.org/> .
-
-<http://example.org/person/Fernando_Niño_de_Guevara> a :Cardinal ;
-    :birthYear "1541" ;
-    :coConsecrators <http://example.org/person/Alfonso_Visconti>,
-        <http://example.org/person/Camillo_Borghese> ;
-    :consecratedBy <http://example.org/person/Pope_Clement_VIII> ;
-    :deathYear "1609" ;
-    :name "Fernando Niño de Guevara" ;
-    :position "Archbishop of Seville" ;
-    :role "Inquisitor General of Spain" .
-
-<http://example.org/portrait/29.100.5> a :Portrait ;
-    :accessionNumber "29.100.5" ;
-    :artist "El Greco" ;
-    :title "Cardinal Fernando Niño de Guevara" ;
-    :yearCreated "1600" .
-
-<http://example.org/person/Alfonso_Visconti> a :Bishop ;
-    :name "Alfonso Visconti" ;
-    :neverBecamePope "true" .
-
-<http://example.org/person/Camillo_Borghese> a :Pope ;
-    :becamePope "Pope Paul V" ;
-    :name "Camillo Borghese" .
-
-<http://example.org/person/Pope_Clement_VIII> a :Pope ;
-    :name "Pope Clement VIII" .
-```
-
-The following retrieve query is used to obtain the correct solution:
-
-```sparql
-SELECT ?name
-WHERE {
-  ?bishop a :Bishop ;
-          :neverBecamePope "true" ;
-          :name ?name .
-  ?cardinal :coConsecrators ?bishop .
-  ?cardinal a :Cardinal ;
-            :name "Fernando Niño de Guevara" .
-}
-```

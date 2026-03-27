@@ -27,7 +27,7 @@ The KGoT system is designed as a modular and flexible framework that consists of
 </p>
 
 - The [Controller](kgot/controller/README.md) component offers fine-grained control over the customizable parameters in the KGoT pipeline and orchestrates the KG-based reasoning procedure.
-- The [Graph Store](kgot/knowledge_graph/README.md) component provides a modular interface for supporting various *Knowledge Graph Backends*. We initially support Neo4j, NetworkX and RDF4J.
+- The [Graph Store](kgot/knowledge_graph/README.md) component provides a modular interface for supporting various *Knowledge Graph Backends*. We support Neo4j, FalkorDB, and NetworkX.
 - The [Integrated Tools](kgot/tools/README.md) component allows for flexible and extensible *Tool Usage* and enables the multi-modal reasoning capabilities of the framework.
 
 ## Setup Guide
@@ -61,18 +61,9 @@ Please update the API keys, if necessary, for the language models you intend to 
 You can also add new models by incorporating their information into the JSON file.
 The object key is the language model identifier used in KGoT, and the various attributes contain the information needed to run the model.
 
-Local models are expected to be hosted using **[Ollama](https://ollama.com/)**. KGoT assumes that the model is accessible at the default Ollama API endpoint (`http://localhost:11434`) and integrates with it through **ChatOllama** via the [LangChain](https://www.langchain.com/) framework.
-You can change the endpoint URL in the `config_llms.json` file if needed by adding the `base_url` attribute to the respective model configuration.
-
-> [!NOTE]
-> **Please be aware** that the values for `num_ctx`, `num_predict`, and `num_batch` in the configuration are based on the specific GPU type and VRAM capacity used during our experiments. You may need to adjust these parameters based on your own hardware setup to avoid out-of-memory errors or suboptimal performance.
-
-For the `SurferAgent` tool we rely on SerpAPI for browsing necessary external information from the Internet.
-To use this tool, please set the API key within the `kgot/config_tools.json` file.
-
 ### Setting Up the Containerized Environment
 
-In order to provide a secure & consistent execution environment, we containerize critical modules such as the **Neo4j graph database**, the **RDF4J database** and the **Python Code Tool**. This allows the safe execution of LLM-generated code without security concerns.
+In order to provide a secure & consistent execution environment, we containerize critical modules such as the **Neo4j graph database** and the **Python Code Tool**. This allows the safe execution of LLM-generated code without security concerns.
 
 #### Running the Container Instances
 
@@ -111,7 +102,7 @@ This will build and start:
 - KGoT image
 
 > [!NOTE]
-> Further instructions on RDF4J and on customizing the container images can be found under [Container Image Setup](containers/README.md).
+> Further instructions on customizing the container images can be found under [Container Image Setup](containers/README.md).
 
 > [!WARNING]
 > The initial building phase of the KGoT container image can take a while (15 minutes), so be patient.
@@ -150,7 +141,7 @@ The following are the most commonly used arguments:
 Arguments:
   --log_base_folder     - Directory where logs will be stored [path/to/log_folder]
   --controller_choice   - Type of solver to use               [directRetrieve/queryRetrieve]
-  --backend_choice      - Backend database type               [neo4j/networkX/rdf4j]
+  --backend_choice      - Backend database type               [neo4j/networkX/falkordb]
   --tool_choice         - Tool configuration                  [tools_v2_3]
   --max_iterations      - Max iterations for KGoT             [integers > 0]
   --gaia_formatter      - Use GAIA formatter for the output   [True/False]
@@ -158,7 +149,7 @@ Arguments:
 Example: ./run_multiple_gaia.sh --log_base_folder logs/test_1 --controller_choice directRetrieve --backend_choice networkX --tools "tools_v2_3" --max_iterations 5 --gaia_formatter
 ```
 
-We offer three choices for storing the [knowledge graph](kgot/knowledge_graph/README.md) (Neo4j, NetworkX and RDF4J) as well as two choices for the [retrieval type](kgot/controller#knowledge-extraction) (direct and query-based retrieval).
+We offer three choices for storing the [knowledge graph](kgot/knowledge_graph/README.md) (Neo4j, FalkorDB, and NetworkX) as well as two choices for the [retrieval type](kgot/controller#knowledge-extraction) (direct and query-based retrieval).
 
 ### Using Knowledge Graph of Thoughts
 
@@ -167,7 +158,7 @@ We offer two ways to evaluate KGoT on the datasets as well as a way to use KGoT 
 As discussed above, you can use the `run_multiple_gaia.sh` or `run_multiple_simpleqa.sh` scripts to evaluate KGoT on the GAIA and SimpleQA datasets respectively, which act as frontends for the `gaia.py` and `simpleqa.py` Python scripts.
 They allow to evaluate multiple subsets of the datasets or to do multiple runs on these subsets, while also transfering the knowledge graph snapshots as well as plotting the results with various metrics.
 We further discuss the use of the scripts [here](benchmarks#evaluating-multiple-subsets).
-Please note, that if you use your own Neo4j or RDF4J server instead of the one inside the Docker container, the transfer of the knowledge graph snapshots will fail or needs to be adapted.
+Please note, that if you use your own Neo4j server instead of the one inside the Docker container, the transfer of the knowledge graph snapshots will fail or needs to be adapted.
 
 You can also directly run the Python script [gaia.py](benchmarks/gaia.py), which we further discuss [here](benchmarks#evaluate-kgot-on-gaia).
 This Python script will however not plot the resulting data nor move the snapshots of the knowledge graph.

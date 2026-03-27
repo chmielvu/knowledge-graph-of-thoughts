@@ -1,0 +1,45 @@
+# FalkorDB + MCP Server Docker Compose for KGoT
+# Provides FalkorDB graph database with optional MCP server for AI tool integration
+#
+# Usage:
+#   docker compose up -d
+#
+# FalkorDB: localhost:6379 (Redis protocol)
+# MCP Server: localhost:3000
+#
+# Environment variables (optional):
+#   FALKORDB_PASSWORD - Password for authentication
+#   FALKORDB_GRAPH_NAME - Default graph name (default: kgot_graph)
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: kgot-falkordb
+    ports:
+      - "6379:6379"
+    environment:
+      - FALKORDB_ARGS=--save 60 1 --appendonly yes
+    volumes:
+      - falkordb_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  falkordb-mcp:
+    image: falkordb/mcpserver:latest
+    container_name: kgot-falkordb-mcp
+    ports:
+      - "3000:3000"
+    environment:
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:

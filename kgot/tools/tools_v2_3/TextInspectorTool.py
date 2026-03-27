@@ -21,7 +21,29 @@ from typing import Any, Optional, Type
 from langchain.tools import BaseTool
 from langchain_core.runnables import Runnable
 from pydantic import BaseModel, Field
-from transformers.agents.llm_engine import MessageRole, get_clean_message_list
+
+# Local replacement for deprecated transformers.agents.llm_engine
+from enum import Enum
+class MessageRole(str, Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+    TOOL = "tool"
+    TOOL_RESPONSE = "tool_response"
+
+def get_clean_message_list(messages: list, role_conversions: dict = None) -> list:
+    """Convert messages to clean OpenAI format with role conversions."""
+    if role_conversions is None:
+        role_conversions = {}
+
+    clean_messages = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        # Apply role conversions
+        if role in role_conversions:
+            role = role_conversions[role].value if isinstance(role_conversions[role], MessageRole) else role_conversions[role]
+        clean_messages.append({"role": role, "content": msg.get("content", "")})
+    return clean_messages
 
 from kgot.tools.tools_v2_3.ExtractZipTool import ZipExtractor
 from kgot.tools.tools_v2_3.MdConverter import MarkdownConverter
@@ -157,9 +179,9 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             },
         ]
         openai_role_conversions = {
-            MessageRole.TOOL_RESPONSE: MessageRole.USER,
+            "tool_response": "user",
         }
-        
+
         response = self.llm.invoke(get_clean_message_list(messages, role_conversions=openai_role_conversions))
         
         return response.content
