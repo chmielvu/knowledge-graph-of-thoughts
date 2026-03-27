@@ -24,21 +24,22 @@ Key parameters configurable in controllers:
 ### 2. Graph Store (`kgot/knowledge_graph/`)
 Manages the dynamically evolving KG. Supports three backends:
 - **Neo4j**: Uses Cypher queries; good for retrieving specific subgraphs/patterns
+- **FalkorDB**: Redis-based graph database with semantic search capabilities
 - **NetworkX**: In-memory lightweight alternative using Python `exec()` for queries; good for path traversals with computational steps
-- **RDF4J**: Uses SPARQL queries; requires read and write endpoints
 
 All backends implement `KnowledgeGraphInterface` in `kg_interface.py`.
 
 ### 3. Integrated Tools (`kgot/tools/`)
 Enables multi-modal reasoning capabilities:
 - `RunPythonCodeTool`: Executes Python code in sandboxed Docker environment
-- `SearchTool` (Surfer Agent): Web searches via SerpAPI
+- `WebBrowserTool`: Web searches via browser automation
 - `TextInspectorTool`: Examines text files, PDFs, spreadsheets, etc.
 - `ImageQuestionTool`: Analyzes images with vision models
 - `ExtractZipTool`: Handles compressed files
 - `LangchainLLMTool`: Additional LLM for extended knowledge
 - `GraphVizTool`: Graph visualization
-- `PollinationsSearchTool`: Alternative search tool
+- `PollinationsSearchTool`: AI-powered search tool
+- `FalkorDBSearchTool`: Semantic search on knowledge graph
 
 Tools must adhere to LangChain's `BaseTool` interface.
 
@@ -83,18 +84,18 @@ docker compose up  # Starts KGoT container
 
 Required config files (copy from templates):
 - `kgot/config_llms.json` - LLM API keys and model configurations
-- `kgot/config_tools.json` - Tool API keys (SerpAPI for Surfer Agent)
+- `kgot/config_tools.json` - Tool API keys (Pollinations)
 
 Environment variables (`.env` file):
 - `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`
+- `FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_GRAPH_NAME`
 - `PYTHON_EXECUTOR_URI` (default: `http://localhost:16000/run`)
-- `RDF4J_READ_URI`, `RDF4J_WRITE_URI`
 
 ## Controller Types
 
 Two retrieval strategies available:
 - **directRetrieve**: Embeds the entire KG in LLM context for solution
-- **queryRetrieve**: Uses LLM-generated queries (Cypher/Python/SPARQL) to extract specific information
+- **queryRetrieve**: Uses LLM-generated queries (Cypher/Python) to extract specific information
 
 File structure for controllers:
 ```

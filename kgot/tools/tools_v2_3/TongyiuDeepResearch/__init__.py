@@ -564,7 +564,7 @@ class AIWebSearchTool(BaseTool):
 
 class TongyiuDeepResearchTool(BaseTool):
     """
-    Tongyiu Deep Research - Comprehensive multi-source research agent.
+    Deep Research Agent - Conducts comprehensive multi-source research.
 
     Uses Tongyi-DeepResearch-30B-A3B for orchestration and
     Mistral Medium 2505 for extraction tasks.
@@ -577,18 +577,39 @@ class TongyiuDeepResearchTool(BaseTool):
     - Research gaps
     """
 
-    name: str = "deep_research"
+    name: str = "deep_research_tool"
     description: str = """
-    Conduct comprehensive multi-source research on a topic.
-    Returns a structured report with synthesized answer, key findings, sources, and confidence.
+Comprehensive multi-source research agent. Use when you need THOROUGH investigation.
 
-    Use for:
-    - Market research and competitor analysis
-    - Technical documentation synthesis
-    - Academic literature review
-    - Fact-checking and verification
-    - Deep-dive investigations
-    """
+This tool searches MULTIPLE sources, crawls web pages, and synthesizes findings
+into a structured report. It will:
+1. Generate optimized search queries
+2. Search SearXNG/DuckDuckGo and optionally Pollinations AI search
+3. Crawl promising pages with Crawl4AI
+4. Extract structured information using LLM strategies
+5. Synthesize findings into a comprehensive answer
+
+Use for:
+- Market research and competitor analysis (set depth="deep")
+- Technical documentation synthesis across multiple sources
+- Academic literature review
+- Fact-checking requiring multiple sources
+- Any question requiring comprehensive research
+
+Parameters:
+- query: The research question or topic
+- depth: "quick" (1-2 sources), "standard" (3-5 sources), "deep" (5-10 sources)
+- focus_areas: Optional list of aspects to focus on
+- exclude_sources: URLs to skip
+
+Returns: Structured output with answer, key_findings, sources, confidence, gaps.
+
+AVOID for:
+- Simple lookups (use LLM knowledge)
+- Single URL navigation (use browser_use_tool)
+- Quick fact checks (use pollinations_search)
+"""
+
     args_schema: Type[BaseModel] = ResearchInput
 
     config: Optional[TongyiuConfig] = None

@@ -1,15 +1,17 @@
 [
   {
-    "name": "SERPAPI",
-    "env": {
-      "SERPAPI_API_KEY": ""
-    }
-  },
-  {
     "name": "POLLINATIONS",
     "env": {
       "POLLINATIONS_API_KEY": "",
       "POLLINATIONS_API_BASE_URL": "https://gen.pollinations.ai"
+    }
+  },
+  {
+    "name": "LANGFUSE",
+    "env": {
+      "LANGFUSE_PUBLIC_KEY": "",
+      "LANGFUSE_SECRET_KEY": "",
+      "LANGFUSE_HOST": "https://cloud.langfuse.com"
     }
   }
 ]

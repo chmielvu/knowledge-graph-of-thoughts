@@ -13,10 +13,6 @@ import traceback
 from typing import Type
 
 import httpx
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    ChatOllama = None
 from langchain_openai import ChatOpenAI
 from openai import APIConnectionError, InternalServerError, OpenAI
 from pydantic import BaseModel
@@ -188,21 +184,10 @@ def get_llm(model_name: str, temperature: float = None, max_tokens: int = None):
             base_url=model_config.get("base_url"),
             max_tokens=model_config["max_tokens"],
             organization=model_config["organization"],
-            **{key: model_config[key] for key in 
+            **{key: model_config[key] for key in
                ["temperature", "reasoning_effort"] if key in model_config}
         )
-    elif model_config["model_family"] == "Ollama":
-        if ChatOllama is None:
-            raise ImportError("langchain_ollama is required for Ollama models")
-        llm_to_return = ChatOllama(
-            model=model_config["model"],
-            temperature=model_config["temperature"],
-            base_url=model_config["base_url"] if "base_url" in model_config else "localhost:11434",
-            num_ctx=model_config["num_ctx"],
-            num_predict=model_config["num_predict"],
-            num_batch=model_config["num_batch"],
-            keep_alive=-1)
     else:
-        raise ValueError(f"Model family '{model_config['model_family']}' not supported, check the config_llms.json file")
+        raise ValueError(f"Model family '{model_config['model_family']}' not supported. Only 'OpenAI' is supported. Check the config_llms.json file")
 
     return llm_to_return

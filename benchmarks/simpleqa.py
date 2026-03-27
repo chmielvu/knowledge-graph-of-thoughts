@@ -130,8 +130,6 @@ def main(
         neo4j_username: str = "neo4j",
         neo4j_password: str = "password",
         python_executor_uri: str = "http://localhost:16000/run",
-        rdf4j_read_uri: str = "http://localhost:8080/rdf4j-server/repositories/kgot",
-        rdf4j_write_uri: str = "http://localhost:8080/rdf4j-server/repositories/kgot/statements",
         max_iterations: int = 7,
         num_next_steps_decision: int = 5,
         max_retrieve_query_retry: int = 3,
@@ -185,8 +183,6 @@ def main(
 
             controller_object = importlib.import_module(f"kgot.controller.{db_choice}.{controller_choice}").Controller
             controller = controller_object(
-                rdf4j_read_uri=rdf4j_read_uri,
-                rdf4j_write_uri=rdf4j_write_uri,
                 neo4j_uri=neo4j_uri,
                 neo4j_username=neo4j_username,
                 neo4j_pwd= neo4j_password,
@@ -230,8 +226,6 @@ if __name__ == "__main__":
     parser.add_argument('--neo4j_username', type=str, required=False, help='Neo4j username', default="neo4j")
     parser.add_argument('--neo4j_password', type=str, required=False, help='Neo4j password', default="password")
     parser.add_argument('--python_executor_uri', type=str, required=False, help='URI for Python tool executor', default="http://localhost:16000/run")
-    parser.add_argument('--rdf4j_read_uri', type=str, required=False, help='RDF4J endpoint for querying', default="http://localhost:8080/rdf4j-server/repositories/kgot")
-    parser.add_argument('--rdf4j_write_uri', type=str, required=False, help='RDF4J endpoint for update statements', default="http://localhost:8080/rdf4j-server/repositories/kgot/statements")
 
     parser.add_argument('--max_iterations', type=int, required=False, help='Max iterations for KGoT', default=7)
     parser.add_argument('--num_next_steps_decision', type=int, required=False, help='Number of next steps decision', default=5)
