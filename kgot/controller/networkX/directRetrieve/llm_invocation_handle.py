@@ -12,7 +12,7 @@ import logging
 from pprint import pformat
 from typing import List
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from kgot.controller.networkX.llm_invocation_base import (
@@ -173,10 +173,10 @@ def generate_forced_solution(llm_planning, initial_query: str,
 
 
 @collect_stats("Controller.parse_solution_with_llm")
-def parse_solution_with_llm(llm_planning, initial_query: str, partial_solution: str, gaia_formatter: bool,
+def parse_solution_with_llm(llm_planning, initial_query: str, partial_solution: str,
                             *args, **kwargs):
     return parse_solution_with_llm_base(
-        llm_planning, initial_query, partial_solution, gaia_formatter, *args, **kwargs
+        llm_planning, initial_query, partial_solution, *args, **kwargs
     )
 
 

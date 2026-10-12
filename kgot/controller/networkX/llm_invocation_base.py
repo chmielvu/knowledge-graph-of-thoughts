@@ -10,7 +10,7 @@ import logging
 from pprint import pformat
 from typing import List
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from kgot.prompts.networkX.base_prompts import (
@@ -19,7 +19,7 @@ from kgot.prompts.networkX.base_prompts import (
     DEFINE_REASON_TO_INSERT_PROMPT_TEMPLATE,
     PARSE_FINAL_SOLUTION_WITH_LLM_PROMPT_TEMPLATE,
     UPDATE_GRAPH_GIVEN_NEW_INFORMATION_PROMPT_TEMPLATE,
-    get_formatter,
+    PARSE_SOLUTION_WITH_LLM_PROMPT_TEMPLATE_DEFAULT,
 )
 from kgot.utils.llm_utils import invoke_structured_with_retry, invoke_with_retry
 
@@ -113,7 +113,7 @@ def define_need_for_math_before_parsing_base(llm_planning, initial_query: str, p
     return response.need_for_math
 
 
-def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solution: str, gaia_formatter: bool,
+def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solution: str,
                             *args, **kwargs):
     # Define the output parser model
     class Solution(BaseModel):
@@ -121,7 +121,7 @@ def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solut
 
     prompt_template = PromptTemplate(
         input_variables=["initial_query", "partial_solution"],
-        template=get_formatter(gaia_formatter),
+        template=PARSE_SOLUTION_WITH_LLM_PROMPT_TEMPLATE_DEFAULT,
     )
 
     # Create the chain to invoke (see RunnableSequence)

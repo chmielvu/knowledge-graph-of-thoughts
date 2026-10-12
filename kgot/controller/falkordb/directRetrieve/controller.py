@@ -175,11 +175,11 @@ class Controller(ControllerInterface):
                 if need_math:
                     sol = self._get_math_response(query, sol)
                 for i in range(self.max_final_solution_parsing):
-                    array_parsed_solutions.append(parse_solution_with_llm(self.llm_planning, query, sol, self.gaia_formatter, self.usage_statistics))
+                    array_parsed_solutions.append(parse_solution_with_llm(self.llm_planning, query, sol, self.usage_statistics))
 
             if all(not p.strip() for p in array_parsed_solutions if p):
                 forced_solution = generate_forced_solution(self.llm_planning, query, existing_entities_and_relationships, self.usage_statistics)
-                solution = parse_solution_with_llm(self.llm_planning, query, forced_solution, self.gaia_formatter, self.usage_statistics)
+                solution = parse_solution_with_llm(self.llm_planning, query, forced_solution, self.usage_statistics)
             else:
                 solution = define_final_solution(self.llm_planning, query, str(solutions), array_parsed_solutions, self.usage_statistics)
         else:

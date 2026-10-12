@@ -24,6 +24,7 @@ from typing import Any, List, Tuple, Optional, Dict
 from falkordb import FalkorDB
 
 from kgot.knowledge_graph.kg_interface import KnowledgeGraphInterface
+from kgot.utils.cypher_validator import CypherValidator, CypherValidationError
 
 # LangChain integrations
 from langchain_community.graphs import FalkorDBGraph
@@ -638,6 +639,12 @@ class KnowledgeGraph(KnowledgeGraphInterface):
         if query is None:
             return None, False, ValueError("Query to execute is None")  # type: ignore
 
+        # Validate Cypher query before execution
+        is_valid, error = CypherValidator.validate(query)
+        if not is_valid:
+            self.logger.error(f"Invalid Cypher query: {error}")
+            return None, False, CypherValidationError(error, query)  # type: ignore
+
         try:
             # Use read-only query for better performance
             result = self._ro_query_database(query)
@@ -663,6 +670,12 @@ class KnowledgeGraph(KnowledgeGraphInterface):
         """
         if query is None:
             return False, ValueError("Query to execute is None")
+
+        # Validate Cypher query before execution (strict - no dangerous patterns)
+        is_valid, error = CypherValidator.validate(query, allow_dangerous=False)
+        if not is_valid:
+            self.logger.error(f"Invalid write query: {error}")
+            return False, CypherValidationError(error, query)
 
         try:
             self.graph.query(query)

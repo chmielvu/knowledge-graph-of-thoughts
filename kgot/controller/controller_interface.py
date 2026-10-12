@@ -63,7 +63,6 @@ class ControllerInterface(ABC):
                  max_final_solution_parsing: int = 3,
                  max_tool_retries: int = 6,
                  max_llm_retries: int = 6,
-                 gaia_formatter: bool = False,
                  *args,
                  **kwargs
                  ) -> None:
@@ -85,7 +84,6 @@ class ControllerInterface(ABC):
             max_final_solution_parsing (int): Maximum retries for parsing final solutions.
             max_tool_retries (int): Maximum retries for LLM invocations.
             max_llm_retries (int): Maximum retries for LLM invocations.
-            gaia_formatter (bool): Whether to use the GAIA formatter.
         """
         print("LLM Planning Model: ", llm_planning_model)
         print("LLM Execution Model: ", llm_execution_model)
@@ -117,7 +115,6 @@ class ControllerInterface(ABC):
         self.max_final_solution_parsing = max_final_solution_parsing
         self.max_tool_retries = max_tool_retries
 
-        self.gaia_formatter = gaia_formatter
 
         self.graph = None  # Placeholder for the graph database connection
 

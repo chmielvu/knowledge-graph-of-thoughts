@@ -14,13 +14,18 @@ from typing import Type
 
 import httpx
 from langchain_openai import ChatOpenAI
-from openai import APIConnectionError, InternalServerError, OpenAI
+from openai import APIConnectionError, InternalServerError
 from pydantic import BaseModel
 from tenacity import (
     Retrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
+)
+
+from kgot.utils.circuit_breaker import (
+    CircuitBreakerOpenError,
+    get_llm_circuit_breaker,
 )
 
 CONFIG_LLM_PATH = ''
@@ -79,75 +84,55 @@ def _retry_call(fn):
 
 
 def invoke_with_retry(chain, *args, **kwargs):
-    return _retry_call(lambda: chain.invoke(*args, **kwargs))
+    """
+    Invoke a chain with retry logic and circuit breaker protection.
+
+    The circuit breaker prevents cascading failures when the LLM service is degraded.
+    After 5 consecutive failures, the circuit opens and blocks calls for 60 seconds,
+    then transitions to half-open to test recovery.
+    """
+    cb = get_llm_circuit_breaker()
+
+    if not cb.is_call_allowed():
+        raise CircuitBreakerOpenError(
+            f"LLM service circuit breaker is {cb.state}. "
+            f"Failures: {cb._failure_count}/{cb.failure_threshold}. "
+            f"Will retry after recovery timeout."
+        )
+
+    try:
+        result = _retry_call(lambda: chain.invoke(*args, **kwargs))
+        cb.record_success()
+        return result
+    except Exception as e:
+        cb.record_failure()
+        raise
 
 
-def _should_use_json_object_structured_output(llm) -> bool:
-    base_url = getattr(llm, "openai_api_base", None)
-    return isinstance(llm, ChatOpenAI) and isinstance(base_url, str) and ("nano-gpt.com" in base_url or "nanogpt" in base_url)
+def invoke_structured_with_retry(llm, schema_model: Type[BaseModel], prompt):
+    """Provider-enforced structured output over the strict tool-call contract.
 
-
-def _prompt_to_text(prompt) -> str:
-    if isinstance(prompt, str):
-        return prompt
-    if hasattr(prompt, "to_string"):
-        return prompt.to_string()
-    if hasattr(prompt, "text"):
-        return prompt.text
-    return str(prompt)
-
-
-def _clean_json_content(content: str) -> str:
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    return text.strip("`").strip()
-
-
-def _invoke_structured_via_json_object(llm, schema_model: Type[BaseModel], prompt):
-    client = OpenAI(
-        api_key=llm.openai_api_key.get_secret_value() if llm.openai_api_key is not None else None,
-        base_url=getattr(llm, "openai_api_base", None),
-        organization=getattr(llm, "openai_organization", None),
+    Binds the Pydantic model as a single strict function tool and forces its
+    invocation with tool_choice="required" - the form OpenAI-compatible
+    routers honor reliably, unlike with_structured_output's object-form
+    tool_choice. The returned tool arguments are validated by Pydantic.
+    Fails fast when the transport returns text instead of the tool call.
+    """
+    bound = llm.bind_tools(
+        [schema_model],
+        tool_choice="required",
+        parallel_tool_calls=False,
+        strict=True,
     )
-    schema = schema_model.model_json_schema()
-    required_keys = schema.get("required") or list(schema.get("properties", {}).keys())
-    key_instruction = ", ".join(required_keys) if required_keys else "the schema-defined keys"
-    prompt_text = _prompt_to_text(prompt)
-    response = client.chat.completions.create(
-        model=llm.model_name,
-        temperature=llm.temperature,
-        max_tokens=llm.max_tokens,
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Return only a valid JSON object matching this schema. "
-                    f"Use exactly these top-level keys: {key_instruction}. "
-                    "Do not rename keys, omit required keys, add extra keys, "
-                    "or include markdown, code fences, or explanatory text.\n"
-                    f"{json.dumps(schema, ensure_ascii=False)}"
-                ),
-            },
-            {"role": "user", "content": prompt_text},
-        ],
-    )
-    content = _clean_json_content(response.choices[0].message.content)
-    return schema_model.model_validate_json(content)
-
-
-def invoke_structured_with_retry(llm, schema_model: Type[BaseModel], prompt, method: str = "json_schema"):
-    if method == "json_schema" and _should_use_json_object_structured_output(llm):
-        return _retry_call(lambda: _invoke_structured_via_json_object(llm, schema_model, prompt))
-
-    chain = llm.with_structured_output(schema_model, method=method)
-    return invoke_with_retry(chain, prompt)
+    message = invoke_with_retry(bound, prompt)
+    tool_calls = getattr(message, "tool_calls", None)
+    if not tool_calls:
+        raise ValueError(
+            f"Structured output failed: transport did not emit the required "
+            f"tool call for schema {schema_model.__name__}. "
+            f"Content: {str(getattr(message, 'content', ''))[:200]}"
+        )
+    return schema_model.model_validate(tool_calls[0]["args"])
 
 
 def get_model_configurations(model_name: str) -> dict:

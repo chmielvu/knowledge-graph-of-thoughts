@@ -10,7 +10,7 @@ import logging
 from pprint import pformat
 from typing import List
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from kgot.prompts.neo4j.base_prompts import (
@@ -22,7 +22,7 @@ from kgot.prompts.neo4j.base_prompts import (
     DEFINE_TOOL_CALLS_PROMPT_TEMPLATE,
     FIX_CYPHER_PROMPT_TEMPLATE,
     PARSE_FINAL_SOLUTION_WITH_LLM_PROMPT_TEMPLATE,
-    get_formatter,
+    PARSE_SOLUTION_WITH_LLM_PROMPT_TEMPLATE_DEFAULT,
 )
 from kgot.utils.llm_utils import invoke_structured_with_retry, invoke_with_retry
 
@@ -127,6 +127,11 @@ def define_tool_calls_base(llm_execution, initial_query: str,
     response = invoke_with_retry(chain, completed_prompt)
     logger.info(f"Tools to call:\n{pformat(response, width=160)}")
 
+    # Handle empty tool calls gracefully
+    if not hasattr(response, 'tool_calls') or not response.tool_calls:
+        logger.warning("No tool calls in response - returning empty list")
+        return []
+
     # Return the wanted values
     return response.tool_calls
 
@@ -141,10 +146,15 @@ def define_math_tool_call_base(llm_execution, initial_query: str,
 
     completed_prompt = prompt_template.invoke({"initial_query": initial_query,
                                                "current_solution": solution})
-    
+
     chain = llm_execution
     response = invoke_with_retry(chain, completed_prompt)
     logger.info(f"Tools to call:\n{pformat(response, width=160)}")
+
+    # Handle empty tool calls gracefully
+    if not hasattr(response, 'tool_calls') or not response.tool_calls:
+        logger.warning("No tool calls in response - returning empty list")
+        return []
 
     # Return the wanted values
     return response.tool_calls
@@ -174,7 +184,7 @@ def define_need_for_math_before_parsing_base(llm_planning, initial_query: str, p
     return response.need_for_math
 
 
-def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solution: str, gaia_formatter: bool,
+def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solution: str,
                             *args, **kwargs):
     # Define the output parser model
     class Solution(BaseModel):
@@ -182,7 +192,7 @@ def parse_solution_with_llm_base(llm_planning, initial_query: str, partial_solut
 
     prompt_template = PromptTemplate(
         input_variables=["initial_query", "partial_solution"],
-        template=get_formatter(gaia_formatter),
+        template=PARSE_SOLUTION_WITH_LLM_PROMPT_TEMPLATE_DEFAULT,
     )
 
     # Create the chain to invoke (see RunnableSequence)
