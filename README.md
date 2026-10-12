@@ -133,7 +133,6 @@ chmod +x ./run_multiple_simpleqa.sh # grant permission for logging etc.
 The following instructions apply to the `run_multiple_gaia.sh` script, but are also applicable to the `run_multiple_simpleqa.sh` script; for more detailed instructions please refer to the complete guide [here](benchmarks/README.md).
 
 You can run `./run_multiple_gaia.sh --help` to check the supported arguments, that generally match the options found [here](benchmarks/README.md) for the `gaia.py` Python script.
-For optimal results, we recommend enabling the '--gaia_formatter' option, which will format the output in a GAIA-compatible format.
 
 The following are the most commonly used arguments:
 
@@ -144,9 +143,8 @@ Arguments:
   --backend_choice      - Backend database type               [neo4j/networkX/falkordb]
   --tool_choice         - Tool configuration                  [tools_v2_3]
   --max_iterations      - Max iterations for KGoT             [integers > 0]
-  --gaia_formatter      - Use GAIA formatter for the output   [True/False]
 
-Example: ./run_multiple_gaia.sh --log_base_folder logs/test_1 --controller_choice directRetrieve --backend_choice networkX --tools "tools_v2_3" --max_iterations 5 --gaia_formatter
+Example: ./run_multiple_gaia.sh --log_base_folder logs/test_1 --controller_choice directRetrieve --backend_choice networkX --tools "tools_v2_3" --max_iterations 5
 ```
 
 We offer three choices for storing the [knowledge graph](kgot/knowledge_graph/README.md) (Neo4j, FalkorDB, and NetworkX) as well as two choices for the [retrieval type](kgot/controller#knowledge-extraction) (direct and query-based retrieval).
@@ -163,16 +161,18 @@ Please note, that if you use your own Neo4j server instead of the one inside the
 You can also directly run the Python script [gaia.py](benchmarks/gaia.py), which we further discuss [here](benchmarks#evaluate-kgot-on-gaia).
 This Python script will however not plot the resulting data nor move the snapshots of the knowledge graph.
 
-You can also directly use the command `kgot`, which is fully configurable and can be used to solve a single task:
+You can also directly use the command `kgot` to solve a single task. The CLI implementation lives in `cli/` and the graph backend is fixed to FalkorDB:
 
 ```bash
 kgot single -p "What is a knowledge graph?"
 ```
 
-You can also, for example, select a desirable backend and pass files via the command line:
+Answers follow the requested depth and format: factual lookups stay brief, while explanatory and interpretive questions receive developed analysis. Supply source passages together with their URLs or identifiers for cited answers. The final synthesis step cannot browse, and missing or conflicting evidence is reported rather than filled in by guessing. There is no separate benchmark answer formatter.
+
+You can also select a controller and pass files via the command line:
 
 ```bash
-kgot --db_choice neo4j --controller_choice directRetrieve single --p "Could you summarize the content of these files for me?" --files [path/to/file1] [path/to/file2]
+kgot --controller_choice directRetrieve single -p "Could you summarize the content of these files for me?" --files path/to/file1 --files path/to/file2
 ```
 
 ## Citations

@@ -89,3 +89,9 @@ temp/
 nul
 kgot/nul
 
+# Local-only scratch (never commit)
+.tmp_space_inspect/
+.pytest-tmp/
+.kgot_smoke.json
+.kgot/
+

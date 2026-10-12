@@ -19,11 +19,6 @@ from pathlib import Path
 import streamlit as st
 
 try:
-    from neo4j import GraphDatabase
-except Exception:  # pragma: no cover
-    GraphDatabase = None
-
-try:
     from falkordb import FalkorDB
 except Exception:  # pragma: no cover
     FalkorDB = None
@@ -157,131 +152,84 @@ def _save_uploads(files) -> list[str]:
 # Graph Queries
 # =============================================================================
 
-def _query_graph_snapshot(backend: str) -> dict[str, object]:
-    """Query graph database for snapshot information."""
-    # FalkorDB support
-    if backend == "falkordb":
-        if FalkorDB is None:
-            return {
-                "backend": backend,
-                "nodes": 0,
-                "relationships": 0,
-                "labels": [],
-                "summary": "FalkorDB package not installed.",
-            }
-        host = ENV_CONFIG.get("FALKORDB_HOST", "localhost")
-        port = int(ENV_CONFIG.get("FALKORDB_PORT", "6379"))
-        graph_name = ENV_CONFIG.get("FALKORDB_GRAPH_NAME", "kgot_graph")
-        try:
-            db = FalkorDB(host=host, port=port)
-            graph = db.select_graph(graph_name)
-
-            # Query node and relationship counts
-            node_result = graph.query("MATCH (n) RETURN count(n) AS count")
-            rel_result = graph.query("MATCH ()-[r]->() RETURN count(r) AS count")
-            labels_result = graph.query("MATCH (n) UNWIND labels(n) AS label RETURN DISTINCT label LIMIT 12")
-
-            # Query actual nodes and edges for visualization
-            nodes_result = graph.query("MATCH (n) RETURN n, labels(n) AS labels, id(n) AS id LIMIT 50")
-            edges_result = graph.query("MATCH (a)-[r]->(b) RETURN id(a) AS source, id(b) AS target, type(r) AS type LIMIT 100")
-
-            node_count = node_result.result_set[0][0] if node_result.result_set else 0
-            rel_count = rel_result.result_set[0][0] if rel_result.result_set else 0
-            labels = [row[0] for row in labels_result.result_set] if labels_result.result_set else []
-
-            # Build graph elements for visualization
-            elements = []
-            node_id_map = {}
-
-            if nodes_result.result_set:
-                for i, row in enumerate(nodes_result.result_set):
-                    try:
-                        node_data = row[0] if row[0] else {}
-                        node_labels = row[1] if len(row) > 1 else []
-                        node_id = str(row[2]) if len(row) > 2 else f"n{i}"
-                        node_id_map[node_id] = f"node_{i}"
-
-                        label = node_labels[0] if node_labels else "Node"
-                        name = node_data.get("name", node_data.get("content", "")[:30]) if isinstance(node_data, dict) else str(node_data)[:30]
-
-                        elements.append({
-                            "id": f"node_{i}",
-                            "label": label,
-                            "content": name,
-                            "data": node_data,
-                        })
-                    except Exception:
-                        continue
-
-            if edges_result.result_set:
-                for row in edges_result.result_set:
-                    try:
-                        source_id = str(row[0])
-                        target_id = str(row[1])
-                        rel_type = row[2] if len(row) > 2 else "RELATED"
-
-                        source_idx = node_id_map.get(source_id, source_id)
-                        target_idx = node_id_map.get(target_id, target_id)
-
-                        elements.append({
-                            "source": source_idx,
-                            "target": target_idx,
-                            "label": rel_type,
-                        })
-                    except Exception:
-                        continue
-
-            st.session_state.graph_elements = elements
-
-            return {
-                "backend": backend,
-                "nodes": node_count,
-                "relationships": rel_count,
-                "labels": labels,
-                "summary": f"Live summary from FalkorDB graph '{graph_name}'.",
-            }
-        except Exception as exc:
-            return {
-                "backend": backend,
-                "nodes": 0,
-                "relationships": 0,
-                "labels": [],
-                "summary": f"Failed to query FalkorDB: {exc}",
-            }
-
-    # Neo4j support
-    if backend != "neo4j" or GraphDatabase is None:
+def _query_graph_snapshot() -> dict[str, object]:
+    """Query FalkorDB for snapshot information."""
+    backend = "falkordb"
+    if FalkorDB is None:
         return {
             "backend": backend,
             "nodes": 0,
             "relationships": 0,
             "labels": [],
-            "summary": f"No live graph summary implemented for backend '{backend}'.",
+            "summary": "FalkorDB package not installed.",
         }
-
-    uri = ENV_CONFIG.get("NEO4J_URI", "bolt://localhost:7687")
-    user = ENV_CONFIG.get("NEO4J_USER", "neo4j")
-    password = ENV_CONFIG.get("NEO4J_PASSWORD", "password")
+    host = ENV_CONFIG.get("FALKORDB_HOST", "localhost")
+    port = int(ENV_CONFIG.get("FALKORDB_PORT", "6379"))
+    graph_name = ENV_CONFIG.get("FALKORDB_GRAPH_NAME", "kgot_graph")
     try:
-        driver = GraphDatabase.driver(uri, auth=(user, password))
-        with driver.session() as session:
-            node_result = session.run("MATCH (n) RETURN count(n) AS count").single()
-            rel_result = session.run("MATCH ()-[r]->() RETURN count(r) AS count").single()
-            node_count = node_result["count"] if node_result else 0
-            rel_count = rel_result["count"] if rel_result else 0
-            labels = [
-                record["label"]
-                for record in session.run(
-                    "MATCH (n) UNWIND labels(n) AS label RETURN DISTINCT label LIMIT 12"
-                )
-            ]
-        driver.close()
+        db = FalkorDB(host=host, port=port)
+        graph = db.select_graph(graph_name)
+
+        node_result = graph.query("MATCH (n) RETURN count(n) AS count")
+        rel_result = graph.query("MATCH ()-[r]->() RETURN count(r) AS count")
+        labels_result = graph.query("MATCH (n) UNWIND labels(n) AS label RETURN DISTINCT label LIMIT 12")
+
+        nodes_result = graph.query("MATCH (n) RETURN n, labels(n) AS labels, id(n) AS id LIMIT 50")
+        edges_result = graph.query("MATCH (a)-[r]->(b) RETURN id(a) AS source, id(b) AS target, type(r) AS type LIMIT 100")
+
+        node_count = node_result.result_set[0][0] if node_result.result_set else 0
+        rel_count = rel_result.result_set[0][0] if rel_result.result_set else 0
+        labels = [row[0] for row in labels_result.result_set] if labels_result.result_set else []
+
+        elements = []
+        node_id_map = {}
+
+        if nodes_result.result_set:
+            for i, row in enumerate(nodes_result.result_set):
+                try:
+                    node_data = row[0] if row[0] else {}
+                    node_labels = row[1] if len(row) > 1 else []
+                    node_id = str(row[2]) if len(row) > 2 else f"n{i}"
+                    node_id_map[node_id] = f"node_{i}"
+
+                    label = node_labels[0] if node_labels else "Node"
+                    name = node_data.get("name", node_data.get("content", "")[:30]) if isinstance(node_data, dict) else str(node_data)[:30]
+
+                    elements.append({
+                        "id": f"node_{i}",
+                        "label": label,
+                        "content": name,
+                        "data": node_data,
+                    })
+                except Exception:
+                    continue
+
+        if edges_result.result_set:
+            for row in edges_result.result_set:
+                try:
+                    source_id = str(row[0])
+                    target_id = str(row[1])
+                    rel_type = row[2] if len(row) > 2 else "RELATED"
+
+                    source_idx = node_id_map.get(source_id, source_id)
+                    target_idx = node_id_map.get(target_id, target_id)
+
+                    elements.append({
+                        "source": source_idx,
+                        "target": target_idx,
+                        "label": rel_type,
+                    })
+                except Exception:
+                    continue
+
+        st.session_state.graph_elements = elements
+
         return {
             "backend": backend,
             "nodes": node_count,
             "relationships": rel_count,
             "labels": labels,
-            "summary": "Live summary loaded from Neo4j.",
+            "summary": f"Live summary from FalkorDB graph '{graph_name}'.",
         }
     except Exception as exc:
         return {
@@ -289,7 +237,7 @@ def _query_graph_snapshot(backend: str) -> dict[str, object]:
             "nodes": 0,
             "relationships": 0,
             "labels": [],
-            "summary": f"Failed to query Neo4j: {exc}",
+            "summary": f"Failed to query FalkorDB: {exc}",
         }
 
 
@@ -297,16 +245,14 @@ def _query_graph_snapshot(backend: str) -> dict[str, object]:
 # KGoT Execution
 # =============================================================================
 
-def _run_kgot(prompt: str, backend: str, controller: str, tool_choice: str,
+def _run_kgot(prompt: str, controller: str, tool_choice: str,
               llm_plan: str, llm_exec: str, uploads, live_placeholder, status_container):
     """Execute KGoT and stream output."""
     file_paths = _save_uploads(uploads)
     command = [
         str(PYTHON_EXE),
         "-m",
-        "kgot",
-        "--db_choice",
-        backend,
+        "cli",
         "--controller_choice",
         controller,
         "--tool_choice",
@@ -360,7 +306,6 @@ def _run_kgot(prompt: str, backend: str, controller: str, tool_choice: str,
             stage = _classify_line(line)
             st.session_state.trace.append({"stage": stage, "message": line})
 
-            # Track tool calls
             tool_info = _parse_tool_call(line)
             if tool_info:
                 current_tool = tool_info["tool"]
@@ -377,7 +322,7 @@ def _run_kgot(prompt: str, backend: str, controller: str, tool_choice: str,
     st.session_state.raw_output = "\n".join(lines)
     if return_code != 0 and not st.session_state.final_answer:
         st.session_state.final_answer = f"Run failed with exit code {return_code}"
-    st.session_state.graph_snapshot = _query_graph_snapshot(backend)
+    st.session_state.graph_snapshot = _query_graph_snapshot()
     return return_code
 
 
@@ -524,12 +469,8 @@ with st.sidebar:
     with col2:
         llm_exec = st.selectbox("Execution LLM", options=llm_options, index=0) or "nanogpt"
 
-    st.subheader("Backend & Controller")
-    col1, col2 = st.columns(2)
-    with col1:
-        backend = st.selectbox("Backend", options=["falkordb", "neo4j", "networkX"], index=0)
-    with col2:
-        controller = st.selectbox("Controller", options=["queryRetrieve", "directRetrieve"], index=0)
+    st.subheader("Controller")
+    controller = st.selectbox("Controller", options=["queryRetrieve", "directRetrieve"], index=0)
 
     tool_choice = st.selectbox("Tool bundle", options=["tools_v2_3"], index=0)
     uploads = st.file_uploader("📎 Attachments", accept_multiple_files=True)
@@ -540,7 +481,6 @@ with st.sidebar:
         "\n".join([
             f"Python: {'✅' if PYTHON_EXE.exists() else '❌'} {PYTHON_EXE.name}",
             f"FalkorDB: {ENV_CONFIG.get('FALKORDB_HOST', 'localhost')}:{ENV_CONFIG.get('FALKORDB_PORT', '6379')}",
-            f"Neo4j: {ENV_CONFIG.get('NEO4J_URI', 'unset')}",
             f"Attachments: {len(uploads) if uploads else 0}",
         ]),
         language=None
@@ -563,7 +503,7 @@ with left:
         llm_exec_val: str = llm_exec or "nanogpt"
         with st.spinner("Running KGoT agent..."):
             _run_kgot(
-                prompt, backend, controller, tool_choice,
+                prompt, controller, tool_choice,
                 llm_plan_val, llm_exec_val, uploads, live_trace, status_container
             )
 

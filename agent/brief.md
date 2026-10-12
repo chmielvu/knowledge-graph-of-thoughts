@@ -1,0 +1,1 @@
+KGoT is a knowledge-graph-backed LLM assistant. The `kgot` CLI gives AI agents a validated, non-interactive interface for discovering capabilities, inspecting sanitized configuration, previewing a single task, executing that task, and recording local feedback. JSON is the default output; use `--human` only when readable prose is needed.
