@@ -4,5 +4,27 @@
     "env": {
       "HUGGINGFACE_TOKEN": ""
     }
+  },
+  {
+    "name": "BRIGHTDATA",
+    "env": {
+      "BRIGHT_DATA_API_TOKEN": "",
+      "BRIGHTDATA_SERP_ZONE": "serp",
+      "BRIGHTDATA_UNLOCKER_ZONE": "unlocker"
+    }
+  },
+  {
+    "name": "YOUTUBE",
+    "env": {
+      "YOUTUBE_API_KEY": ""
+    }
+  },
+  {
+    "name": "SCHOLAR",
+    "env": {
+      "SEMANTIC_SCHOLAR_API_KEY": "",
+      "OPENALEX_API_KEY": "",
+      "CONTACT_EMAIL": ""
+    }
   }
 ]

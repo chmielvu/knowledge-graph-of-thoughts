@@ -7,12 +7,14 @@
 # Main authors: Lorenzo Paleari
 #               Andrea Jiang
 
+import time
 from typing import Any, Type
 
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from kgot.tools.base import ToolOutput
 from kgot.utils import UsageStatistics, llm_utils
 from kgot.utils.log_and_statistics import collect_stats
 
@@ -54,6 +56,18 @@ query = "Summarize the following text: 'Artificial intelligence refers to the si
 
     @collect_stats("llm_query")
     def _run(self, query: str):
-        result = self.llm.invoke(query).content
-
-        return result
+        start_time = time.time()
+        try:
+            result = self.llm.invoke(query).content
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result=result,
+                metadata={"duration": round(duration, 2), "tool": "llm_query"}
+            ).to_llm_string()
+        except Exception as e:
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=str(e),
+                error_code="API_ERROR",
+                metadata={"duration": round(duration, 2), "query_preview": query[:100]}
+            ).to_llm_string()

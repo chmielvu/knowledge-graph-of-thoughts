@@ -16,6 +16,7 @@
 
 import logging
 import os
+import time
 from typing import Any, Optional, Type
 
 from langchain.tools import BaseTool
@@ -45,6 +46,7 @@ def get_clean_message_list(messages: list, role_conversions: dict = None) -> lis
         clean_messages.append({"role": role, "content": msg.get("content", "")})
     return clean_messages
 
+from kgot.tools.base import ToolOutput
 from kgot.tools.tools_v2_3.ExtractZipTool import ZipExtractor
 from kgot.tools.tools_v2_3.MdConverter import MarkdownConverter
 from kgot.utils import UsageStatistics, llm_utils
@@ -134,31 +136,62 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
     @collect_stats("inspect_file_as_text")
     def _run(self, file_path, question: Optional[str] = None) -> str:
+        start_time = time.time()
+
         if file_path[0] == "/":
             file_path = file_path[1:]
-        
+
         # Construct the default path
         default_path = os.path.join(self.default_data_folder, os.path.basename(file_path))
-        
+
         # Check if the file exists in the default path, if not use the provided path
         if os.path.exists(default_path):
             file_path = default_path
-        
+
         if ".zip" in file_path:
             zip_extractor = ZipExtractor()
             return zip_extractor.extract_zip(file_path)
-        
-        if file_path.endswith(('.png', '.jpg', '.jpeg', '.svg')):
-            return "Cannot use inspect_file_as_text tool with images: use the image_inspector tool instead!"
 
-        result = self.md_converter.convert(file_path)
+        if file_path.endswith(('.png', '.jpg', '.jpeg', '.svg')):
+            return ToolOutput.error_result(
+                error="Cannot use inspect_file_as_text tool with images: use the image_inspector tool instead!",
+                error_code="VALIDATION_ERROR",
+                metadata={"file_path": file_path, "file_type": "image"}
+            ).to_llm_string()
+
+        try:
+            result = self.md_converter.convert(file_path)
+        except FileNotFoundError:
+            return ToolOutput.error_result(
+                error=f"File not found: {file_path}",
+                error_code="RESOURCE_NOT_FOUND",
+                metadata={"file_path": file_path}
+            ).to_llm_string()
+        except Exception as e:
+            return ToolOutput.error_result(
+                error=f"Failed to convert file: {str(e)}",
+                error_code="CONVERSION_ERROR",
+                metadata={"file_path": file_path}
+            ).to_llm_string()
+
         text_content = result.text_content or ""
-        
+        file_size = len(text_content)
+
         if not question:
-            return self._truncate_for_direct_return(file_path, text_content)
+            content = self._truncate_for_direct_return(file_path, text_content)
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result=content,
+                metadata={
+                    "file_path": file_path,
+                    "file_size": file_size,
+                    "duration": round(duration, 2),
+                    "truncated": file_size > self.max_direct_return_chars
+                }
+            ).to_llm_string()
 
         question_context = self._truncate_for_question_context(file_path, text_content)
-        
+
         messages = [
             {
                 "role": "user",
@@ -182,6 +215,22 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             "tool_response": "user",
         }
 
-        response = self.llm.invoke(get_clean_message_list(messages, role_conversions=openai_role_conversions))
-        
-        return response.content
+        try:
+            response = self.llm.invoke(get_clean_message_list(messages, role_conversions=openai_role_conversions))
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result=response.content,
+                metadata={
+                    "file_path": file_path,
+                    "file_size": file_size,
+                    "duration": round(duration, 2),
+                    "question": question[:100] + "..." if len(question) > 100 else question
+                }
+            ).to_llm_string()
+        except Exception as e:
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"LLM processing failed: {str(e)}",
+                error_code="API_ERROR",
+                metadata={"file_path": file_path, "duration": round(duration, 2)}
+            ).to_llm_string()

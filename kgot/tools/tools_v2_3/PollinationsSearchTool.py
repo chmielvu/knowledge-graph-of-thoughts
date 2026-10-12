@@ -13,6 +13,7 @@ import requests
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from kgot.tools.base import ToolOutput
 from kgot.utils import UsageStatistics
 from kgot.utils.log_and_statistics import collect_stats
 
@@ -50,12 +51,20 @@ class PollinationsSearchTool(BaseTool):
 
     @collect_stats("search_web_answer")
     def _run(self, query: str, model: str = "perplexity-fast", detailed: bool = False) -> str:
+        start_time = time.time()
+
         api_key = os.environ.get("POLLINATIONS_API_KEY")
         if not api_key:
-            return "Pollinations API key is missing. Configure POLLINATIONS_API_KEY to use this tool."
+            return ToolOutput.error_result(
+                error="Pollinations API key is missing. Configure POLLINATIONS_API_KEY to use this tool.",
+                error_code="NOT_INITIALIZED"
+            ).to_llm_string()
 
         if model not in {"perplexity-fast", "perplexity-reasoning", "gemini-search"}:
-            return "Unsupported Pollinations search model. Use one of: perplexity-fast, perplexity-reasoning, gemini-search."
+            return ToolOutput.error_result(
+                error=f"Unsupported Pollinations search model: '{model}'. Use one of: perplexity-fast, perplexity-reasoning, gemini-search.",
+                error_code="VALIDATION_ERROR"
+            ).to_llm_string()
 
         system_prompt = (
             "Search the web and provide a comprehensive answer with sources. Include relevant details and cite your sources."
@@ -75,14 +84,28 @@ class PollinationsSearchTool(BaseTool):
         }
 
         time_before = time.time()
-        response = requests.post(
-            f"{self.api_base_url}/v1/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=30,
-        )
+        try:
+            response = requests.post(
+                f"{self.api_base_url}/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.exceptions.Timeout:
+            return ToolOutput.error_result(
+                error="Request timed out after 30 seconds.",
+                error_code="TIMEOUT",
+                metadata={"query": query[:100], "model": model}
+            ).to_llm_string()
+        except requests.exceptions.RequestException as e:
+            return ToolOutput.error_result(
+                error=f"API request failed: {str(e)}",
+                error_code="API_ERROR",
+                metadata={"query": query[:100], "model": model}
+            ).to_llm_string()
+
         time_after = time.time()
-        response.raise_for_status()
         result = response.json()
 
         if self.usage_statistics is not None:
@@ -119,4 +142,12 @@ class PollinationsSearchTool(BaseTool):
                     url = str(citation)
                 lines.append(f"- {url}")
 
-        return "\n".join(lines)
+        duration = time_after - start_time
+        return ToolOutput.success_result(
+            result="\n".join(lines),
+            metadata={
+                "model": result.get("model", model),
+                "duration": round(duration, 2),
+                "has_citations": bool(citations)
+            }
+        ).to_llm_string()

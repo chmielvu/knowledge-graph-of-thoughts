@@ -45,6 +45,7 @@ from helium import (
     start_chrome,
 )
 
+from kgot.tools.base import ToolOutput
 from kgot.utils import UsageStatistics
 from kgot.utils.log_and_statistics import collect_stats
 
@@ -58,15 +59,19 @@ def init_browser():
     """Initialize the Helium browser with anti-detection settings."""
     global _driver
     if _driver is None:
-        from selenium import webdriver
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--force-device-scale-factor=1")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        _driver = start_chrome(headless=True, options=chrome_options)
+        try:
+            from selenium import webdriver
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument("--headless=new")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--force-device-scale-factor=1")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            _driver = start_chrome(headless=True, options=chrome_options)
+        except Exception as e:
+            _driver = None
+            logger.warning(f"Browser unavailable, continuing without it: {e}")
     return _driver
 
 
@@ -75,6 +80,8 @@ def get_driver():
     global _driver
     if _driver is None:
         init_browser()
+    if _driver is None:
+        raise RuntimeError("browser unavailable: Chrome failed to start")
     return _driver
 
 
@@ -154,30 +161,49 @@ def search_wikipedia(query: str) -> str:
         - May not have info on very recent events or niche topics
         - Good starting point before web search for current info
     """
+    headers = {"User-Agent": "KGoT/1.1 (https://github.com/spcl/knowledge-graph-of-thoughts)"}
     try:
-        # Search for page
-        search_url = f"https://en.wikipedia.org/w/api.php?action=opensearch&search={query}&limit=1&format=json"
-        search_resp = requests.get(search_url, timeout=10)
-
-        if not search_resp.json()[1]:
+        search_url = (
+            "https://en.wikipedia.org/w/api.php?action=opensearch&search="
+            f"{urllib.parse.quote(query)}&limit=1&format=json"
+        )
+        search_resp = requests.get(search_url, headers=headers, timeout=10)
+        search_resp.raise_for_status()
+        payload = search_resp.json()
+        titles = payload[1] if isinstance(payload, list) and len(payload) > 1 else []
+        if not titles:
             return f"No Wikipedia page found for '{query}'. Try a different search term."
 
-        page_title = search_resp.json()[1][0]
+        page_title = titles[0]
 
-        # Get summary
-        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{page_title.replace(' ', '_')}"
-        summary_resp = requests.get(summary_url, timeout=10)
-
+        summary_url = (
+            "https://en.wikipedia.org/api/rest_v1/page/summary/"
+            f"{urllib.parse.quote(page_title.replace(' ', '_'), safe='')}"
+            "?redirect=true"
+        )
+        summary_resp = requests.get(summary_url, headers=headers, timeout=10)
         if summary_resp.status_code != 200:
             return f"Could not fetch Wikipedia summary for '{page_title}'"
 
         data = summary_resp.json()
-        title = data.get('title', page_title)
-        extract = data.get('extract', 'No summary available')
-        page_url = data.get('content_urls', {}).get('desktop', {}).get('page', 'N/A')
+        if data.get("title") == "Not found.":
+            return f"No Wikipedia page found for '{query}'. Try a different search term."
+        title = data.get("title", page_title)
+        extract = data.get("extract", "No summary available")
+        page_url = (
+            data.get("content_urls", {}).get("desktop", {}).get("page")
+            or f"https://en.wikipedia.org/wiki/{page_title.replace(' ', '_')}"
+        )
+        disambiguation_note = ""
+        if "may refer to" in extract:
+            disambiguation_note = "\n\nNote: this looks like a disambiguation page; refine the query to a specific article."
 
-        return f"**Wikipedia: {title}**\n\n{extract[:800]}\n\nURL: {page_url}"
+        return f"**Wikipedia: {title}**\n\n{extract[:600]}{disambiguation_note}\n\nURL: {page_url}"
 
+    except requests.exceptions.Timeout:
+        return f"Wikipedia search timed out after 10 seconds for '{query}'. Try again later."
+    except requests.exceptions.RequestException as e:
+        return f"Wikipedia search failed: {str(e)}"
     except Exception as e:
         return f"Wikipedia search failed: {str(e)}"
 
@@ -230,7 +256,7 @@ def download_file(url: str) -> str:
         return f"Downloaded: {filepath}\nFile size: {file_size} bytes\nType: {content_type}"
 
     except requests.exceptions.Timeout:
-        return f"Download failed: Request timed out. Try a smaller file or check the URL."
+        return "Download failed: Request timed out. Try a smaller file or check the URL."
     except requests.exceptions.RequestException as e:
         return f"Download failed: {str(e)}"
     except Exception as e:
@@ -530,18 +556,28 @@ DO NOT use for:
         super().__init__(**kwargs)
         self.usage_statistics = usage_statistics
 
-        # Get nanoGPT API key
-        nanogpt_api_key = os.getenv("NANOGPT_API_KEY", "")
-        nanogpt_base_url = os.getenv("NANOGPT_BASE_URL", "https://nano-gpt.com/api/subscription/v1")
+        # Resolve the model through the shared LLM config so a config key
+        # (e.g. "nanogpt") never reaches OpenAIModel as model_id.
+        try:
+            from kgot.utils import llm_utils
+            model_config = llm_utils.get_model_configurations(model_name)
+            resolved_model_id = model_config.get("model", model_name)
+            resolved_base_url = model_config.get("base_url") or os.getenv(
+                "NANOGPT_BASE_URL", "https://nano-gpt.com/api/subscription/v1")
+            resolved_api_key = model_config.get("api_key") or os.getenv("NANOGPT_API_KEY", "")
+        except Exception:
+            resolved_model_id = model_name
+            resolved_base_url = os.getenv("NANOGPT_BASE_URL", "https://nano-gpt.com/api/subscription/v1")
+            resolved_api_key = os.getenv("NANOGPT_API_KEY", "")
 
         # Initialize browser
         init_browser()
 
         # Create OpenAI-compatible model for nanoGPT
         model = OpenAIModel(
-            model_id=model_name,
-            api_base=nanogpt_base_url,
-            api_key=nanogpt_api_key,
+            model_id=resolved_model_id,
+            api_base=resolved_base_url,
+            api_key=resolved_api_key,
             temperature=temperature,
         )
 
@@ -568,6 +604,8 @@ DO NOT use for:
     @collect_stats("WebBrowserTool._run")
     def _run(self, query: str) -> str:
         """Execute the browsing agent."""
+        start_time = time.time()
+
         try:
             # Add structured output instructions
             enhanced_query = f"""
@@ -585,10 +623,23 @@ If you cannot find the answer, explain what you tried and what was missing.
 IMPORTANT: Default to DuckDuckGo for searches (fewer captchas). Use Google only if needed.
 """
             result = self.agent.run(enhanced_query)
-            return str(result)
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result=str(result),
+                metadata={
+                    "query": query[:100],
+                    "duration": round(duration, 2),
+                    "tool": "browser_use_tool"
+                }
+            ).to_llm_string()
         except Exception as e:
+            duration = time.time() - start_time
             logger.error(f"WebBrowserTool error: {e}")
-            return f"Browser agent encountered an error: {str(e)}\n\nPlease try rephrasing your request."
+            return ToolOutput.error_result(
+                error=f"Browser agent encountered an error: {str(e)}",
+                error_code="AGENT_ERROR",
+                metadata={"duration": round(duration, 2), "query": query[:100]}
+            ).to_llm_string()
 
 
 # =============================================================================

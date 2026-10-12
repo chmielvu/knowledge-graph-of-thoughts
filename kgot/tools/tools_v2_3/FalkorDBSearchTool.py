@@ -8,6 +8,7 @@
 #
 # Provides semantic, hybrid, and text-to-cypher search capabilities
 
+import time
 from typing import Any, Optional, Type
 
 from langchain_core.tools import BaseTool
@@ -19,6 +20,8 @@ from langchain_community.chains.graph_qa.falkordb import FalkorDBQAChain
 
 # LLM imports
 from langchain_mistralai import ChatMistralAI
+
+from kgot.tools.base import ToolOutput
 
 
 # =============================================================================
@@ -84,16 +87,27 @@ Tips:
 
     def _run(self, query: str, k: int = 5) -> str:
         """Execute semantic search."""
+        start_time = time.time()
+
         if self.kg is None:
-            return "ERROR: Knowledge graph not initialized. This is a system configuration issue."
+            return ToolOutput.error_result(
+                error="Knowledge graph not initialized. This is a system configuration issue.",
+                error_code="NOT_INITIALIZED"
+            ).to_llm_string()
 
         if not query or not query.strip():
-            return "ERROR: Query cannot be empty. Provide a natural language query."
+            return ToolOutput.error_result(
+                error="Query cannot be empty. Provide a natural language query.",
+                error_code="VALIDATION_ERROR"
+            ).to_llm_string()
 
         try:
             results = self.kg.semantic_search(query, k=k)
             if not results:
-                return "No results found. The graph may be empty or no similar content exists. Try a different query or add more data to the graph."
+                return ToolOutput.success_result(
+                    result="No results found. The graph may be empty or no similar content exists. Try a different query or add more data to the graph.",
+                    metadata={"query": query[:100], "k": k, "result_count": 0}
+                ).to_llm_string()
 
             output = []
             for i, doc in enumerate(results, 1):
@@ -103,11 +117,31 @@ Tips:
                     if score is not None:
                         output.append(f"    Similarity: {score:.3f}")
 
-            return "\n".join(output)
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result="\n".join(output),
+                metadata={
+                    "search_type": "semantic",
+                    "query": query[:100],
+                    "k": k,
+                    "result_count": len(results),
+                    "duration": round(duration, 2)
+                }
+            ).to_llm_string()
         except AttributeError as e:
-            return f"ERROR: Semantic search not available - embeddings may not be initialized. Details: {str(e)}"
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"Semantic search not available - embeddings may not be initialized. Details: {str(e)}",
+                error_code="NOT_INITIALIZED",
+                metadata={"duration": round(duration, 2)}
+            ).to_llm_string()
         except Exception as e:
-            return f"ERROR: Semantic search failed: {str(e)}. Try hybrid_search or check if the graph has data."
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"Semantic search failed: {str(e)}. Try hybrid_search or check if the graph has data.",
+                error_code="SEARCH_ERROR",
+                metadata={"duration": round(duration, 2)}
+            ).to_llm_string()
 
 
 # =============================================================================
@@ -142,26 +176,57 @@ Tips:
 
     def _run(self, query: str, k: int = 5) -> str:
         """Execute hybrid search."""
+        start_time = time.time()
+
         if self.kg is None:
-            return "ERROR: Knowledge graph not initialized. This is a system configuration issue."
+            return ToolOutput.error_result(
+                error="Knowledge graph not initialized. This is a system configuration issue.",
+                error_code="NOT_INITIALIZED"
+            ).to_llm_string()
 
         if not query or not query.strip():
-            return "ERROR: Query cannot be empty. Provide a search query."
+            return ToolOutput.error_result(
+                error="Query cannot be empty. Provide a search query.",
+                error_code="VALIDATION_ERROR"
+            ).to_llm_string()
 
         try:
             results = self.kg.hybrid_search(query, k=k)
             if not results:
-                return "No results found. The graph may be empty. Try adding data first."
+                return ToolOutput.success_result(
+                    result="No results found. The graph may be empty. Try adding data first.",
+                    metadata={"query": query[:100], "k": k, "result_count": 0}
+                ).to_llm_string()
 
             output = []
             for i, doc in enumerate(results, 1):
                 output.append(f"[{i}] {doc.page_content}")
 
-            return "\n".join(output)
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result="\n".join(output),
+                metadata={
+                    "search_type": "hybrid",
+                    "query": query[:100],
+                    "k": k,
+                    "result_count": len(results),
+                    "duration": round(duration, 2)
+                }
+            ).to_llm_string()
         except AttributeError as e:
-            return f"ERROR: Search not available - {str(e)}. Check if the knowledge graph is properly configured."
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"Search not available - {str(e)}. Check if the knowledge graph is properly configured.",
+                error_code="NOT_INITIALIZED",
+                metadata={"duration": round(duration, 2)}
+            ).to_llm_string()
         except Exception as e:
-            return f"ERROR: Hybrid search failed: {str(e)}. Try a simpler query."
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"Hybrid search failed: {str(e)}. Try a simpler query.",
+                error_code="SEARCH_ERROR",
+                metadata={"duration": round(duration, 2)}
+            ).to_llm_string()
 
 
 # =============================================================================
@@ -214,20 +279,45 @@ Tips:
 
     def _run(self, question: str) -> str:
         """Execute text-to-cypher query."""
+        start_time = time.time()
+
         if self.qa_chain is None:
-            return "ERROR: QA chain not initialized. This requires MISTRAL_API_KEY to be set."
+            return ToolOutput.error_result(
+                error="QA chain not initialized. This requires MISTRAL_API_KEY to be set.",
+                error_code="NOT_INITIALIZED"
+            ).to_llm_string()
 
         if not question or not question.strip():
-            return "ERROR: Question cannot be empty. Provide a natural language question about the graph."
+            return ToolOutput.error_result(
+                error="Question cannot be empty. Provide a natural language question about the graph.",
+                error_code="VALIDATION_ERROR"
+            ).to_llm_string()
 
         try:
             result = self.qa_chain.invoke({"query": question})
             answer = result.get("result", "")
             if not answer:
-                return "No answer generated. The graph may be empty or the question may not match any data."
-            return answer
+                return ToolOutput.success_result(
+                    result="No answer generated. The graph may be empty or the question may not match any data.",
+                    metadata={"question": question[:100], "has_answer": False}
+                ).to_llm_string()
+
+            duration = time.time() - start_time
+            return ToolOutput.success_result(
+                result=answer,
+                metadata={
+                    "search_type": "text_to_cypher",
+                    "question": question[:100],
+                    "duration": round(duration, 2)
+                }
+            ).to_llm_string()
         except Exception as e:
-            return f"ERROR: Text-to-Cypher failed: {str(e)}. Try rephrasing your question or check if the graph has relevant data."
+            duration = time.time() - start_time
+            return ToolOutput.error_result(
+                error=f"Text-to-Cypher failed: {str(e)}. Try rephrasing your question or check if the graph has relevant data.",
+                error_code="QUERY_ERROR",
+                metadata={"duration": round(duration, 2)}
+            ).to_llm_string()
 
 
 # =============================================================================

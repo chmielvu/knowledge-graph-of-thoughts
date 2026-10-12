@@ -8,6 +8,15 @@
 
 from kgot.tools.PythonCodeTool import RunPythonCodeTool
 from kgot.tools.tool_manager_interface import ToolManagerInterface
+from kgot.tools.tools_v2_3.ArxivSearchTool import ArxivSearchTool
+from kgot.tools.tools_v2_3.BrightdataFetchTool import BrightdataFetchTool
+from kgot.tools.tools_v2_3.BrightdataSearchTool import BrightdataSearchTool
+from kgot.tools.tools_v2_3.HackerNewsTool import HackerNewsSearchTool
+from kgot.tools.tools_v2_3.OpenAlexSearchTool import OpenAlexSearchTool
+from kgot.tools.tools_v2_3.SemanticScholarSearchTool import SemanticScholarSearchTool
+from kgot.tools.tools_v2_3.WikipediaTool import WikipediaSearchTool
+from kgot.tools.tools_v2_3.YouTubeSearchTool import YouTubeSearchTool
+from kgot.tools.tools_v2_3.YouTubeTranscriptTool import YouTubeTranscriptTool
 from kgot.tools.tools_v2_3.ExtractZipTool import ExtractZipTool
 from kgot.tools.tools_v2_3.FalkorDBSearchTool import (
     create_hybrid_search_tool,
@@ -23,7 +32,6 @@ from kgot.tools.tools_v2_3.LLMTool import LangchainLLMTool
 from kgot.tools.tools_v2_3.PollinationsSearchTool import PollinationsSearchTool
 from kgot.tools.tools_v2_3.web_browser import WebBrowserTool, init_browser
 from kgot.tools.tools_v2_3.TextInspectorTool import TextInspectorTool
-from kgot.tools.tools_v2_3.TongyiuDeepResearch import TongyiuDeepResearchTool
 from kgot.utils import UsageStatistics
 import os
 
@@ -72,6 +80,15 @@ class ToolManager(ToolManagerInterface):
         LLM_tool = LangchainLLMTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics)
         textInspectorTool = TextInspectorTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics)
         image_question_tool = ImageQuestionTool(model_name=model_name, temperature=0.5, usage_statistics=usage_statistics) if ImageQuestionTool is not None else None
+        brightdata_search_tool = BrightdataSearchTool(usage_statistics=usage_statistics)
+        brightdata_fetch_tool = BrightdataFetchTool(usage_statistics=usage_statistics)
+        wikipedia_tool = WikipediaSearchTool(usage_statistics=usage_statistics)
+        hackernews_tool = HackerNewsSearchTool(usage_statistics=usage_statistics)
+        youtube_search_tool = YouTubeSearchTool(usage_statistics=usage_statistics)
+        youtube_transcript_tool = YouTubeTranscriptTool(usage_statistics=usage_statistics)
+        arxiv_tool = ArxivSearchTool(usage_statistics=usage_statistics)
+        openalex_tool = OpenAlexSearchTool(usage_statistics=usage_statistics)
+        semantic_scholar_tool = SemanticScholarSearchTool(usage_statistics=usage_statistics)
         run_python_tool = RunPythonCodeTool(
             try_to_fix=True,
             times_to_fix=3,
@@ -86,20 +103,21 @@ class ToolManager(ToolManagerInterface):
             textInspectorTool,
             web_browser_tool,
             pollinations_search_tool,
+            brightdata_search_tool,
+            brightdata_fetch_tool,
+            wikipedia_tool,
+            hackernews_tool,
+            youtube_search_tool,
+            youtube_transcript_tool,
+            arxiv_tool,
+            openalex_tool,
+            semantic_scholar_tool,
             run_python_tool,
             extract_zip_tool,
             graph_viz_tool,
         ])
         if image_question_tool is not None:
             self.tools.append(image_question_tool)
-
-        # Deep research tool (Tongyi-DeepResearch with Crawl4AI)
-        try:
-            deep_research_tool = TongyiuDeepResearchTool()
-            self.tools.append(deep_research_tool)
-        except Exception as e:
-            print(f"Warning: Could not initialize TongyiuDeepResearchTool: {e}")
-
         # FalkorDB Search Tools (if graph is provided and supports semantic search)
         if self.graph is not None:
             self._initialize_falkordb_search_tools()
@@ -109,22 +127,30 @@ class ToolManager(ToolManagerInterface):
 
     def _test_python_container(self, python_tool: RunPythonCodeTool) -> None:
         """
-        Test the Python Docker service by running a simple code snippet.
-        If the service is not running, an exception is raised.
+        Test the Python executor service by running a simple code snippet.
+        If the service is unavailable, drop the tool and continue without it.
 
         Args:
-            python_executor_uri (str): URI for the Python Docker service
+            python_tool (RunPythonCodeTool): The Python code tool to test.
         """
-        response = python_tool._run("""
+        try:
+            response = python_tool._run("""
 import os
 print("Hello, World!")
 print("Python Docker service is running.")
 """)
-
-        if response.get("error"):
+        except Exception as e:
             print(
-                "\n\n\033[1;31m" + "Failed to connect to Docker instance! Be sure to have a running Docker instance and double check the connection parameters.\n\n")
-            exit(1)
+                "\n\n\033[1;31m" + f"Python executor check failed ({e}). Continuing without the Python tool.\n\n")
+            if python_tool in self.tools:
+                self.tools.remove(python_tool)
+            return
+
+        if not isinstance(response, dict) or response.get("error"):
+            print(
+                "\n\n\033[1;31m" + "Failed to connect to Docker instance! Be sure to have a running Docker instance and double check the connection parameters. Continuing without the Python tool.\n\n")
+            if python_tool in self.tools:
+                self.tools.remove(python_tool)
 
     def _initialize_falkordb_search_tools(self) -> None:
         """
