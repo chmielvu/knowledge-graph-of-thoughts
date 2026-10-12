@@ -126,7 +126,6 @@ def main(
         controller_choice: str = "queryRetrieve",
         tool_choice: str = "tools_v2_3",
         db_choice: str = "neo4j",
-        gaia_formatter: bool = True,
         zero_shot: bool = False,
     ):
 
@@ -198,7 +197,6 @@ def main(
                 db_choice=db_choice,
                 controller_choice=controller_choice,
                 tool_choice=tool_choice,
-                gaia_formatter=gaia_formatter,
                 config_llm_path=config_llm_path,
                 max_retrieve_query_retry=max_retrieve_query_retry,
                 max_cypher_fixing_retry=max_cypher_fixing_retry,
@@ -243,7 +241,6 @@ if __name__ == "__main__":
     parser.add_argument('--db_choice', type=str, required=False, help='Database choice', default="neo4j")
     parser.add_argument('--tool_choice', type=str, required=False, help='Tool choice', default="tools_v2_3")
     
-    parser.add_argument('--gaia_formatter', action='store_true', help='Use GAIA formatter', default="Enabled")
 
     parser.add_argument('--zero_shot', action='store_true', help='Use zero-shot mode')
 
@@ -274,6 +271,5 @@ if __name__ == "__main__":
         controller_choice=args.controller_choice,
         db_choice=args.db_choice,
         tool_choice=args.tool_choice,
-        gaia_formatter=args.gaia_formatter,
         zero_shot=args.zero_shot,
     )
